@@ -39,10 +39,26 @@ export default function App() {
 
   const d = (light, darkCls) => (dark ? darkCls : light);
 
+  const cabinTypes = [
+    { code: 'SVIP2', points: '40,000', group: 'SVIP' },
+    { code: 'S01', points: '25,000', group: 'S' },
+    { code: 'S02', points: '15,000', group: 'S' },
+    { code: 'S02A', points: '9,000', group: 'S' },
+    { code: 'S03', points: '6,500', group: 'S' },
+    { code: 'S03A', points: '4,000', group: 'S' },
+    { code: 'S04', points: '3,000', group: 'S' },
+    { code: 'S05', points: '2,000', group: 'S' },
+    { code: 'S06', points: '1,500', group: 'S' },
+    { code: 'S07', points: '1,200', group: 'S' },
+    { code: 'S08', points: '800', group: 'S' },
+  ];
+
   const generate = () => {
     const yy = String(year).slice(-2);
     const mm = String(month).padStart(2, '0');
     const generated = [];
+    
+    // Generate CHN links
     for (let x = 1; x <= 7; x++) {
       const f = `${yy}${mm}CHN0${x}.pdf`;
       generated.push({
@@ -50,17 +66,22 @@ export default function App() {
         filename: f,
         url: BASE_URL + f,
         group: 'CHN',
+        points: null,
       });
     }
-    for (let x = 1; x <= 8; x++) {
-      const f = `${yy}${mm}S0${x}.pdf`;
+    
+    // Generate cabin type links with point values
+    cabinTypes.forEach(({ code, points, group }) => {
+      const f = `${yy}${mm}${code}.pdf`;
       generated.push({
-        label: `S0${x}`,
+        label: code,
         filename: f,
         url: BASE_URL + f,
-        group: 'S',
+        group: group,
+        points: points,
       });
-    }
+    });
+    
     setLinks(generated);
     setCopied(null);
   };
@@ -100,6 +121,7 @@ export default function App() {
   };
 
   const chnLinks = links.filter((l) => l.group === 'CHN');
+  const svipLinks = links.filter((l) => l.group === 'SVIP');
   const sLinks = links.filter((l) => l.group === 'S');
 
   return (
@@ -324,99 +346,114 @@ export default function App() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {[
                 { title: 'China (CHN)', data: chnLinks, group: 'CHN' },
+                { title: 'SVIP', data: svipLinks, group: 'SVIP' },
                 { title: 'Singapore (S)', data: sLinks, group: 'S' },
               ].map(({ title, data, group }) => (
-                <div
-                  key={group}
-                  className={`border rounded-xl overflow-hidden ${d(
-                    'border-gray-200',
-                    'border-gray-700'
-                  )}`}
-                >
+                data.length > 0 && (
                   <div
-                    className={`flex items-center justify-between px-4 py-2 ${d(
-                      'bg-gray-50',
-                      'bg-gray-800'
+                    key={group}
+                    className={`border rounded-xl overflow-hidden ${d(
+                      'border-gray-200',
+                      'border-gray-700'
                     )}`}
                   >
-                    <span
-                      className={`text-xs font-semibold uppercase tracking-wide ${d(
-                        'text-gray-500',
-                        'text-gray-400'
+                    <div
+                      className={`flex items-center justify-between px-4 py-2 ${d(
+                        'bg-gray-50',
+                        'bg-gray-800'
                       )}`}
                     >
-                      {title}
-                    </span>
-                    <button
-                      onClick={() => copyGroup(group)}
-                      className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors ${d(
-                        'bg-white hover:bg-gray-100 text-gray-600 border border-gray-200',
-                        'bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600'
-                      )}`}
-                    >
-                      {copied === 'group-' + group ? (
-                        <Check className="w-3 h-3 text-green-500" />
-                      ) : (
-                        <Copy className="w-3 h-3" />
-                      )}
-                      {copied === 'group-' + group ? 'Copied!' : 'Copy group'}
-                    </button>
-                  </div>
-                  <ul
-                    className={`divide-y ${d(
-                      'divide-gray-100',
-                      'divide-gray-700'
-                    )}`}
-                  >
-                    {data.map((link) => (
-                      <li
-                        key={link.filename}
-                        className={`flex items-center justify-between px-4 py-2 transition-colors ${d(
-                          'hover:bg-gray-50',
-                          'hover:bg-gray-800/60'
+                      <span
+                        className={`text-xs font-semibold uppercase tracking-wide ${d(
+                          'text-gray-500',
+                          'text-gray-400'
                         )}`}
                       >
-                        <span
-                          className={`text-sm font-mono truncate ${d(
-                            'text-blue-600',
-                            'text-blue-400'
+                        {title}
+                      </span>
+                      <button
+                        onClick={() => copyGroup(group)}
+                        className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors ${d(
+                          'bg-white hover:bg-gray-100 text-gray-600 border border-gray-200',
+                          'bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600'
+                        )}`}
+                      >
+                        {copied === 'group-' + group ? (
+                          <Check className="w-3 h-3 text-green-500" />
+                        ) : (
+                          <Copy className="w-3 h-3" />
+                        )}
+                        {copied === 'group-' + group ? 'Copied!' : 'Copy group'}
+                      </button>
+                    </div>
+                    <ul
+                      className={`divide-y ${d(
+                        'divide-gray-100',
+                        'divide-gray-700'
+                      )}`}
+                    >
+                      {data.map((link) => (
+                        <li
+                          key={link.filename}
+                          className={`flex items-center justify-between px-4 py-2 transition-colors ${d(
+                            'hover:bg-gray-50',
+                            'hover:bg-gray-800/60'
                           )}`}
                         >
-                          {link.filename}
-                        </span>
-                        <div className="flex items-center gap-1 ml-2 shrink-0">
-                          <button
-                            onClick={() => copySingle(link.url, link.filename)}
-                            title="Copy URL"
-                            className={`p-1 rounded transition-colors ${d(
-                              'text-gray-400 hover:text-gray-700',
-                              'text-gray-500 hover:text-gray-300'
-                            )}`}
-                          >
-                            {copied === link.filename ? (
-                              <Check className="w-4 h-4 text-green-500" />
-                            ) : (
-                              <Copy className="w-4 h-4" />
+                          <div className="min-w-0 flex-1">
+                            <span
+                              className={`text-sm font-mono truncate block ${d(
+                                'text-blue-600',
+                                'text-blue-400'
+                              )}`}
+                            >
+                              {link.filename}
+                            </span>
+                            {link.points && (
+                              <span
+                                className={`text-xs font-medium ${d(
+                                  'text-green-600',
+                                  'text-green-400'
+                                )}`}
+                              >
+                                {link.points} points
+                              </span>
                             )}
-                          </button>
-                          <button
-                            onClick={() => openPdf(link.url)}
-                            title="Open PDF"
-                            className={`p-1 rounded transition-colors ${d(
-                              'text-gray-400 hover:text-blue-600',
-                              'text-gray-500 hover:text-blue-400'
-                            )}`}
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                          </div>
+                          <div className="flex items-center gap-1 ml-2 shrink-0">
+                            <button
+                              onClick={() => copySingle(link.url, link.filename)}
+                              title="Copy URL"
+                              className={`p-1 rounded transition-colors ${d(
+                                'text-gray-400 hover:text-gray-700',
+                                'text-gray-500 hover:text-gray-300'
+                              )}`}
+                            >
+                              {copied === link.filename ? (
+                                <Check className="w-4 h-4 text-green-500" />
+                              ) : (
+                                <Copy className="w-4 h-4" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => openPdf(link.url)}
+                              title="Open PDF"
+                              className={`p-1 rounded transition-colors ${d(
+                                'text-gray-400 hover:text-blue-600',
+                                'text-gray-500 hover:text-blue-400'
+                              )}`}
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )
               ))}
             </div>
           </div>
