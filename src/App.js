@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
 import {
   FileText,
   Copy,
@@ -7,7 +10,13 @@ import {
   Moon,
   Sun,
   ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  Loader,
 } from 'lucide-react';
+
+// Set up the worker for react-pdf
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 const BASE_URL =
   'https://www.royalcaribbean.com/content/dam/royal/resources/pdf/casino/offers/';
@@ -22,6 +31,10 @@ export default function App() {
   const [lookupCode, setLookupCode] = useState('');
   const [lookupResult, setLookupResult] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [numPages, setNumPages] = useState(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState(null);
 
   const monthNames = [
     'January',
@@ -150,9 +163,40 @@ export default function App() {
 
   const openPdf = (url) => window.open(url, '_blank');
 
-  const previewPdf = (url) => setPreviewUrl(url);
+  const previewPdf = (url) => {
+    setPreviewUrl(url);
+    setPageNumber(1);
+    setNumPages(null);
+    setPdfLoading(true);
+    setPdfError(null);
+  };
 
-  const closePreview = () => setPreviewUrl(null);
+  const closePreview = () => {
+    setPreviewUrl(null);
+    setPageNumber(1);
+    setNumPages(null);
+    setPdfError(null);
+  };
+
+  const onDocumentLoadSuccess = ({ numPages }) => {
+    setNumPages(numPages);
+    setPdfLoading(false);
+    setPdfError(null);
+  };
+
+  const onDocumentLoadError = (error) => {
+    console.error('PDF Load Error:', error);
+    setPdfLoading(false);
+    setPdfError('Failed to load PDF. The server may be blocking access.');
+  };
+
+  const goToPrevPage = () => {
+    setPageNumber((prev) => Math.max(prev - 1, 1));
+  };
+
+  const goToNextPage = () => {
+    setPageNumber((prev) => Math.min(prev + 1, numPages || 1));
+  };
 
   const copyAll = () => {
     navigator.clipboard.writeText(links.map((l) => l.url).join('\n'));
@@ -546,14 +590,15 @@ export default function App() {
             onClick={closePreview}
           >
             <div
-              className={`relative w-full h-full max-w-6xl max-h-[90vh] rounded-lg overflow-hidden shadow-2xl ${d(
+              className={`relative w-full h-full max-w-6xl max-h-[90vh] rounded-lg overflow-hidden shadow-2xl flex flex-col ${d(
                 'bg-white',
                 'bg-gray-900'
               )}`}
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Header */}
               <div
-                className={`flex items-center justify-between p-4 border-b ${d(
+                className={`flex items-center justify-between p-4 border-b shrink-0 ${d(
                   'bg-gray-50 border-gray-200',
                   'bg-gray-800 border-gray-700'
                 )}`}
@@ -565,18 +610,46 @@ export default function App() {
                   )}`}
                 >
                   Certificate Preview
+                  {numPages && (
+                    <span
+                      className={`ml-3 text-sm font-normal ${d(
+                        'text-gray-500',
+                        'text-gray-400'
+                      )}`}
+                    >
+                      Page {pageNumber} of {numPages}
+                    </span>
+                  )}
                 </h3>
                 <div className="flex items-center gap-2">
+                  {numPages && numPages > 1 && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={goToPrevPage}
+                        disabled={pageNumber <= 1}
+                        className="p-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={goToNextPage}
+                        disabled={pageNumber >= numPages}
+                        className="p-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                   <button
                     onClick={() => window.open(previewUrl, '_blank')}
-                    className="text-sm flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                    className="text-sm flex items-center gap-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
                   >
                     <ExternalLink className="w-4 h-4" />
                     Open Full PDF
                   </button>
                   <button
                     onClick={closePreview}
-                    className={`text-2xl font-bold leading-none ${d(
+                    className={`text-2xl font-bold leading-none px-2 ${d(
                       'text-gray-500 hover:text-gray-700',
                       'text-gray-400 hover:text-gray-200'
                     )}`}
@@ -585,15 +658,65 @@ export default function App() {
                   </button>
                 </div>
               </div>
-              <div className="w-full h-[calc(100%-4rem)] relative">
-                {/* Using Mozilla's PDF.js viewer for better compatibility */}
-                <iframe
-                  src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(
-                    previewUrl
-                  )}`}
-                  className="w-full h-full"
-                  title="PDF Preview"
-                />
+
+              {/* PDF Content */}
+              <div
+                className={`flex-1 overflow-auto flex items-center justify-center p-4 ${d(
+                  'bg-gray-100',
+                  'bg-gray-950'
+                )}`}
+              >
+                {pdfError ? (
+                  <div className="text-center">
+                    <p
+                      className={`text-lg mb-4 ${d(
+                        'text-gray-700',
+                        'text-gray-300'
+                      )}`}
+                    >
+                      {pdfError}
+                    </p>
+                    <button
+                      onClick={() => window.open(previewUrl, '_blank')}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                    >
+                      Open PDF in New Tab Instead
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center">
+                    <Document
+                      file={previewUrl}
+                      onLoadSuccess={onDocumentLoadSuccess}
+                      onLoadError={onDocumentLoadError}
+                      loading={
+                        <div className="flex flex-col items-center gap-3">
+                          <Loader className="w-8 h-8 animate-spin text-blue-600" />
+                          <p
+                            className={`text-sm ${d(
+                              'text-gray-600',
+                              'text-gray-400'
+                            )}`}
+                          >
+                            Loading PDF...
+                          </p>
+                        </div>
+                      }
+                      options={{
+                        cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
+                        cMapPacked: true,
+                      }}
+                    >
+                      <Page
+                        pageNumber={pageNumber}
+                        renderTextLayer={true}
+                        renderAnnotationLayer={true}
+                        className="shadow-lg"
+                        width={Math.min(window.innerWidth * 0.8, 900)}
+                      />
+                    </Document>
+                  </div>
+                )}
               </div>
             </div>
           </div>
