@@ -1,10 +1,10 @@
 {
   "files": {
-    "main.js": "/Royal-Carribean/static/js/main.d7f42ffc.js",
+    "main.js": "/Royal-Carribean/static/js/main.cbbb5eda.js",
     "index.html": "/Royal-Carribean/index.html",
-    "main.d7f42ffc.js.map": "/Royal-Carribean/static/js/main.d7f42ffc.js.map"
+    "main.cbbb5eda.js.map": "/Royal-Carribean/static/js/main.cbbb5eda.js.map"
   },
   "entrypoints": [
-    "static/js/main.d7f42ffc.js"
+    "static/js/main.cbbb5eda.js"
   ]
 }
