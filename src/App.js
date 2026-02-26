@@ -546,25 +546,55 @@ export default function App() {
             onClick={closePreview}
           >
             <div
-              className="relative w-full h-full max-w-6xl max-h-[90vh] bg-white rounded-lg overflow-hidden shadow-2xl"
+              className={`relative w-full h-full max-w-6xl max-h-[90vh] rounded-lg overflow-hidden shadow-2xl ${d(
+                'bg-white',
+                'bg-gray-900'
+              )}`}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between p-4 border-b bg-gray-50">
-                <h3 className="text-lg font-semibold text-gray-800">
+              <div
+                className={`flex items-center justify-between p-4 border-b ${d(
+                  'bg-gray-50 border-gray-200',
+                  'bg-gray-800 border-gray-700'
+                )}`}
+              >
+                <h3
+                  className={`text-lg font-semibold ${d(
+                    'text-gray-800',
+                    'text-white'
+                  )}`}
+                >
                   Certificate Preview
                 </h3>
-                <button
-                  onClick={closePreview}
-                  className="text-gray-500 hover:text-gray-700 text-2xl font-bold leading-none"
-                >
-                  ×
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => window.open(previewUrl, '_blank')}
+                    className="text-sm flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Open Full PDF
+                  </button>
+                  <button
+                    onClick={closePreview}
+                    className={`text-2xl font-bold leading-none ${d(
+                      'text-gray-500 hover:text-gray-700',
+                      'text-gray-400 hover:text-gray-200'
+                    )}`}
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
-              <iframe
-                src={previewUrl}
-                className="w-full h-[calc(100%-4rem)]"
-                title="PDF Preview"
-              />
+              <div className="w-full h-[calc(100%-4rem)] relative">
+                {/* Using Mozilla's PDF.js viewer for better compatibility */}
+                <iframe
+                  src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(
+                    previewUrl
+                  )}`}
+                  className="w-full h-full"
+                  title="PDF Preview"
+                />
+              </div>
             </div>
           </div>
         )}
