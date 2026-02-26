@@ -21,6 +21,7 @@ export default function App() {
   const [dark, setDark] = useState(false);
   const [lookupCode, setLookupCode] = useState('');
   const [lookupResult, setLookupResult] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
 
   const monthNames = [
     'January',
@@ -148,6 +149,10 @@ export default function App() {
   };
 
   const openPdf = (url) => window.open(url, '_blank');
+
+  const previewPdf = (url) => setPreviewUrl(url);
+
+  const closePreview = () => setPreviewUrl(null);
 
   const copyAll = () => {
     navigator.clipboard.writeText(links.map((l) => l.url).join('\n'));
@@ -299,6 +304,16 @@ export default function App() {
                 </p>
               </div>
               <div className="flex gap-2 ml-3 shrink-0">
+                <button
+                  onClick={() => previewPdf(lookupResult.url)}
+                  className={`text-xs flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${d(
+                    'bg-gray-100 hover:bg-gray-200 text-gray-700',
+                    'bg-gray-600 hover:bg-gray-500 text-gray-200'
+                  )}`}
+                >
+                  <FileText className="w-3 h-3" />
+                  Preview
+                </button>
                 <button
                   onClick={() => copySingle(lookupResult.url, 'lookup')}
                   className={`text-xs flex items-center gap-1 px-3 py-1.5 rounded-lg transition-colors ${d(
@@ -481,6 +496,16 @@ export default function App() {
                         </div>
                         <div className="flex items-center gap-1 ml-2 shrink-0">
                           <button
+                            onClick={() => previewPdf(link.url)}
+                            title="Preview PDF"
+                            className={`p-1 rounded transition-colors ${d(
+                              'text-gray-400 hover:text-gray-700',
+                              'text-gray-500 hover:text-gray-300'
+                            )}`}
+                          >
+                            <FileText className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => copySingle(link.url, link.filename)}
                             title="Copy URL"
                             className={`p-1 rounded transition-colors ${d(
@@ -510,6 +535,36 @@ export default function App() {
                   </ul>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* PDF Preview Modal */}
+        {previewUrl && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
+            onClick={closePreview}
+          >
+            <div
+              className="relative w-full h-full max-w-6xl max-h-[90vh] bg-white rounded-lg overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                <h3 className="text-lg font-semibold text-gray-800">
+                  Certificate Preview
+                </h3>
+                <button
+                  onClick={closePreview}
+                  className="text-gray-500 hover:text-gray-700 text-2xl font-bold leading-none"
+                >
+                  ×
+                </button>
+              </div>
+              <iframe
+                src={previewUrl}
+                className="w-full h-[calc(100%-4rem)]"
+                title="PDF Preview"
+              />
             </div>
           </div>
         )}
