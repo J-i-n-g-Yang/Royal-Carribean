@@ -18,11 +18,3 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
-```
-
-5. Click **"Commit changes"**
-6. Go to **Settings → Pages → Branch → select `gh-pages`** → Save
-
-GitHub will automatically build and deploy your app every time you push. Your live URL will be:
-```
-https://J-i-n-g-Yang.github.io/Royal-Carribean/
