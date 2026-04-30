@@ -78,49 +78,43 @@ export default function TripFinanceOS({ dark }) {
   // );
 
   const NumberField = ({ fieldKey, label, placeholder = '0', prefix = '$' }) => {
-  const [localValue, setLocalValue] = React.useState(newTrip[fieldKey] ?? '');
+  const [localValue, setLocalValue] = React.useState('');
 
-  // Sync external changes (e.g. editing another trip)
+  // Only initialize when trip changes (NOT every keystroke)
   useEffect(() => {
     setLocalValue(newTrip[fieldKey] ?? '');
-  }, [newTrip[fieldKey]]);
-
-  // Allow partial valid numbers while typing
-  const isValidInput = (val) => /^(\d+)?(\.\d*)?$/.test(val);
+    // eslint-disable-next-line
+  }, [activeTrip]); // 👈 key fix: depend on trip switch, not field value
 
   const handleChange = (e) => {
-    const val = e.target.value;
+    setLocalValue(e.target.value); // no validation here
+  };
 
-    if (val === '' || isValidInput(val)) {
-      setLocalValue(val);
-      setNewTrip((prev) => ({
-        ...prev,
-        [fieldKey]: val
-      }));
+  const handleBlur = () => {
+    let val = localValue.replace(/[^\d.]/g, '');
+    const parts = val.split('.');
+    if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
+
+    setNewTrip((prev) => ({
+      ...prev,
+      [fieldKey]: val
+    }));
+
+    // optional formatting
+    if (val) {
+      const numVal = parseFloat(val);
+      if (!isNaN(numVal)) {
+        setLocalValue(
+          numVal.toLocaleString(undefined, {
+            maximumFractionDigits: 2
+          })
+        );
+      }
     }
   };
 
-  // Format nicely on blur (optional but recommended)
-  const handleBlur = () => {
-    if (localValue === '') return;
-
-    const numVal = parseFloat(localValue);
-    if (isNaN(numVal)) return;
-
-    const formatted = numVal.toLocaleString(undefined, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2
-    });
-
-    setLocalValue(formatted);
-  };
-
-  // Remove formatting on focus so user can edit cleanly
   const handleFocus = () => {
-    if (!localValue) return;
-
-    const raw = localValue.toString().replace(/,/g, '');
-    setLocalValue(raw);
+    setLocalValue((v) => v.toString().replace(/,/g, ''));
   };
 
   return (
