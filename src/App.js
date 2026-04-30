@@ -153,6 +153,21 @@ function TripFinanceOS({ dark }) {
 
   const field = (key, label, placeholder = '', type = 'number', prefix = '$') => {
     const isNumber = type === 'number';
+    
+    const handleChange = (e) => {
+      let val = e.target.value;
+      // For number fields, only allow digits and decimal point
+      if (isNumber && val) {
+        val = val.replace(/[^\d.]/g, '');
+        // Prevent multiple decimal points
+        const parts = val.split('.');
+        if (parts.length > 2) {
+          val = parts[0] + '.' + parts.slice(1).join('');
+        }
+      }
+      setNewTrip(prev => ({ ...prev, [key]: val }));
+    };
+
     return (
       <div className="flex flex-col gap-1">
         <label className={`text-xs font-medium ${d('text-gray-500', 'text-gray-400')}`}>{label}</label>
@@ -165,19 +180,7 @@ function TripFinanceOS({ dark }) {
             inputMode={isNumber ? "decimal" : "text"}
             placeholder={placeholder}
             value={newTrip[key] || ''}
-            onChange={e => {
-              let val = e.target.value;
-              // For number fields, only allow digits and decimal point
-              if (isNumber && val) {
-                val = val.replace(/[^\d.]/g, '');
-                // Prevent multiple decimal points
-                const parts = val.split('.');
-                if (parts.length > 2) {
-                  val = parts[0] + '.' + parts.slice(1).join('');
-                }
-              }
-              setNewTrip(t => ({ ...t, [key]: val }));
-            }}
+            onChange={handleChange}
             className={`w-full ${isNumber ? 'pl-7' : 'pl-3'} pr-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`}
           />
         </div>
@@ -343,18 +346,18 @@ function TripFinanceOS({ dark }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
             <div className="flex flex-col gap-1">
               <label className={`text-xs font-medium ${d('text-gray-500', 'text-gray-400')}`}>Trip Name *</label>
-              <input type="text" placeholder="e.g. Harmony 5-night Aug 2025" value={newTrip.name} onChange={e => setNewTrip(t => ({ ...t, name: e.target.value }))}
+              <input type="text" placeholder="e.g. Harmony 5-night Aug 2025" value={newTrip.name || ''} onChange={e => setNewTrip(prev => ({ ...prev, name: e.target.value }))}
                 className={`px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`} />
             </div>
             <div className="flex flex-col gap-1">
               <label className={`text-xs font-medium ${d('text-gray-500', 'text-gray-400')}`}>Ship</label>
-              <input type="text" placeholder="e.g. Harmony of the Seas" value={newTrip.ship} onChange={e => setNewTrip(t => ({ ...t, ship: e.target.value }))}
+              <input type="text" placeholder="e.g. Harmony of the Seas" value={newTrip.ship || ''} onChange={e => setNewTrip(prev => ({ ...prev, ship: e.target.value }))}
                 className={`px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`} />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col gap-1">
                 <label className={`text-xs font-medium ${d('text-gray-500', 'text-gray-400')}`}>Sail Date</label>
-                <input type="date" value={newTrip.sailDate} onChange={e => setNewTrip(t => ({ ...t, sailDate: e.target.value }))}
+                <input type="date" value={newTrip.sailDate || ''} onChange={e => setNewTrip(prev => ({ ...prev, sailDate: e.target.value }))}
                   className={`px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white')}`} />
               </div>
               <div className="flex flex-col gap-1">
@@ -363,10 +366,10 @@ function TripFinanceOS({ dark }) {
                   type="text" 
                   inputMode="numeric"
                   placeholder="7" 
-                  value={newTrip.nights} 
+                  value={newTrip.nights || ''} 
                   onChange={e => {
                     const val = e.target.value.replace(/[^\d]/g, '');
-                    setNewTrip(t => ({ ...t, nights: val }));
+                    setNewTrip(prev => ({ ...prev, nights: val }));
                   }}
                   className={`px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white')}`} 
                 />
@@ -414,18 +417,18 @@ function TripFinanceOS({ dark }) {
               </select>
               {perkInput.preset === 'Custom Perk' && (
                 <>
-                  <input type="text" placeholder="Perk description" value={perkInput.customLabel} onChange={e => setPerkInput(p => ({ ...p, customLabel: e.target.value }))}
+                  <input type="text" placeholder="Perk description" value={perkInput.customLabel || ''} onChange={e => setPerkInput(prev => ({ ...prev, customLabel: e.target.value }))}
                     className={`w-40 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`} />
                   <input 
                     type="text" 
                     inputMode="decimal"
                     placeholder="$ value" 
-                    value={perkInput.customValue} 
+                    value={perkInput.customValue || ''} 
                     onChange={e => {
                       const val = e.target.value.replace(/[^\d.]/g, '');
                       const parts = val.split('.');
                       const cleaned = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : val;
-                      setPerkInput(p => ({ ...p, customValue: cleaned }));
+                      setPerkInput(prev => ({ ...prev, customValue: cleaned }));
                     }}
                     className={`w-24 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`} 
                   />
