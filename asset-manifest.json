@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/Royal-Carribean/static/css/main.0f07efad.css",
-    "main.js": "/Royal-Carribean/static/js/main.2b434424.js",
+    "main.js": "/Royal-Carribean/static/js/main.d484442b.js",
     "index.html": "/Royal-Carribean/index.html",
     "main.0f07efad.css.map": "/Royal-Carribean/static/css/main.0f07efad.css.map",
-    "main.2b434424.js.map": "/Royal-Carribean/static/js/main.2b434424.js.map"
+    "main.d484442b.js.map": "/Royal-Carribean/static/js/main.d484442b.js.map"
   },
   "entrypoints": [
     "static/css/main.0f07efad.css",
-    "static/js/main.2b434424.js"
+    "static/js/main.d484442b.js"
   ]
 }
