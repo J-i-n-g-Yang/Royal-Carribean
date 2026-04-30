@@ -394,7 +394,7 @@ export default function TripFinanceOS({ dark }) {
                   }`}
                   />
               </div>
-              /* {perkInput.preset === 'Custom Perk' && (
+              {/* {perkInput.preset === 'Custom Perk' && (
                 <>
                   <input type="text" placeholder="Perk description" value={perkInput.customLabel || ''}
                     onChange={(e) => setPerkInput((prev) => ({ ...prev, customLabel: e.target.value }))}
@@ -408,7 +408,7 @@ export default function TripFinanceOS({ dark }) {
                     }}
                     className={`w-24 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`} />
                 </>
-              )} */
+              )} */}
               <button onClick={addPerk} disabled={!perkInput.preset}
                 className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm rounded-lg flex items-center gap-1">
                 <Plus className="w-4 h-4" /> Add
