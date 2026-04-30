@@ -57,25 +57,99 @@ export default function TripFinanceOS({ dark }) {
 
   // ── Sub-components ───────────────────────────────────────────────────────
 
-  const NumberField = ({ fieldKey, label, placeholder = '0', prefix = '$' }) => (
+  // const NumberField = ({ fieldKey, label, placeholder = '0', prefix = '$' }) => (
+  //   <div className="flex flex-col gap-1">
+  //     <label className={`text-xs font-medium ${d('text-gray-500', 'text-gray-400')}`}>{label}</label>
+  //     <div className="relative">
+  //       <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm ${d('text-gray-400', 'text-gray-500')}`}>{prefix}</span>
+  //       <input
+  //         type="text" inputMode="decimal" placeholder={placeholder}
+  //         value={newTrip[fieldKey] || ''}
+  //         onChange={(e) => {
+  //           let val = e.target.value.replace(/[^\d.]/g, '');
+  //           const parts = val.split('.');
+  //           if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
+  //           setNewTrip((prev) => ({ ...prev, [fieldKey]: val }));
+  //         }}
+  //         className={`w-full pl-7 pr-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`}
+  //       />
+  //     </div>
+  //   </div>
+  // );
+
+  const NumberField = ({ fieldKey, label, placeholder = '0', prefix = '$' }) => {
+  const [localValue, setLocalValue] = React.useState(newTrip[fieldKey] ?? '');
+
+  // Sync external changes (e.g. editing another trip)
+  useEffect(() => {
+    setLocalValue(newTrip[fieldKey] ?? '');
+  }, [newTrip[fieldKey]]);
+
+  // Allow partial valid numbers while typing
+  const isValidInput = (val) => /^(\d+)?(\.\d*)?$/.test(val);
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+
+    if (val === '' || isValidInput(val)) {
+      setLocalValue(val);
+      setNewTrip((prev) => ({
+        ...prev,
+        [fieldKey]: val
+      }));
+    }
+  };
+
+  // Format nicely on blur (optional but recommended)
+  const handleBlur = () => {
+    if (localValue === '') return;
+
+    const numVal = parseFloat(localValue);
+    if (isNaN(numVal)) return;
+
+    const formatted = numVal.toLocaleString(undefined, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    });
+
+    setLocalValue(formatted);
+  };
+
+  // Remove formatting on focus so user can edit cleanly
+  const handleFocus = () => {
+    if (!localValue) return;
+
+    const raw = localValue.toString().replace(/,/g, '');
+    setLocalValue(raw);
+  };
+
+  return (
     <div className="flex flex-col gap-1">
-      <label className={`text-xs font-medium ${d('text-gray-500', 'text-gray-400')}`}>{label}</label>
+      <label className={`text-xs font-medium ${d('text-gray-500', 'text-gray-400')}`}>
+        {label}
+      </label>
+
       <div className="relative">
-        <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm ${d('text-gray-400', 'text-gray-500')}`}>{prefix}</span>
+        <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm ${d('text-gray-400', 'text-gray-500')}`}>
+          {prefix}
+        </span>
+
         <input
-          type="text" inputMode="decimal" placeholder={placeholder}
-          value={newTrip[fieldKey] || ''}
-          onChange={(e) => {
-            let val = e.target.value.replace(/[^\d.]/g, '');
-            const parts = val.split('.');
-            if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
-            setNewTrip((prev) => ({ ...prev, [fieldKey]: val }));
-          }}
-          className={`w-full pl-7 pr-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`}
+          type="text"
+          inputMode="decimal"
+          placeholder={placeholder}
+          value={localValue}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          onFocus={handleFocus}
+          className={`w-full pl-7 pr-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+            d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')
+          }`}
         />
       </div>
     </div>
   );
+};
 
   const Section = ({ id, title, icon: Icon, children }) => (
     <div className={`rounded-xl overflow-hidden border mb-3 ${d('border-gray-200', 'border-gray-700')}`}>
