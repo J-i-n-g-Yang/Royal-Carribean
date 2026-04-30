@@ -76,16 +76,18 @@ const EMPTY_TRIP = {
   notes: '',
 };
 
+// Safe localStorage helpers — won't crash in restricted or SSR environments
+const storageGet = (key, fallback) => {
+  try { return JSON.parse(localStorage.getItem(key) ?? 'null') ?? fallback; } catch { return fallback; }
+};
+const storageSet = (key, value) => {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+};
+
 function TripFinanceOS({ dark }) {
   const d = (light, darkCls) => (dark ? darkCls : light);
 
-  const savedTrips = () => {
-    try {
-      return JSON.parse(localStorage.getItem('rc_trips') || '[]');
-    } catch {
-      return [];
-    }
-  };
+  const savedTrips = () => storageGet('rc_trips', []);
 
   const [trips, setTrips] = useState(savedTrips);
   const [activeTrip, setActiveTrip] = useState(null);
@@ -96,7 +98,7 @@ function TripFinanceOS({ dark }) {
   const [viewingTrip, setViewingTrip] = useState(null);
 
   useEffect(() => {
-    try { localStorage.setItem('rc_trips', JSON.stringify(trips)); } catch {}
+    storageSet('rc_trips', trips);
   }, [trips]);
 
   const num = (v) => parseFloat(v) || 0;
@@ -492,7 +494,7 @@ export default function App() {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
-  const [pdfLoading, setPdfLoading] = useState(false);
+  // pdfLoading removed — loading state is handled by react-pdf's built-in loading prop
   const [pdfError, setPdfError] = useState(null);
   const [activeTab, setActiveTab] = useState('generator');
 
@@ -627,7 +629,6 @@ export default function App() {
     setPreviewUrl(url);
     setPageNumber(1);
     setNumPages(null);
-    setPdfLoading(true);
     setPdfError(null);
   };
 
@@ -640,13 +641,11 @@ export default function App() {
 
   const onDocumentLoadSuccess = ({ numPages }) => {
     setNumPages(numPages);
-    setPdfLoading(false);
     setPdfError(null);
   };
 
   const onDocumentLoadError = (error) => {
     console.error('PDF Load Error:', error);
-    setPdfLoading(false);
     setPdfError('Failed to load PDF. The server may be blocking access.');
   };
 
