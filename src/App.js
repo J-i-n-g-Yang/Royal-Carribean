@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { pdfjs } from 'react-pdf';
-import { Anchor, Moon, Sun, FileText, Calculator, TrendingUp } from 'lucide-react';
+import { Anchor, Moon, Sun, FileText, Calculator, TrendingUp, CalendarRange } from 'lucide-react';
 
-import LinkGenerator    from './components/LinkGenerator';
-import TripFinanceOS    from './components/TripFinanceOS';
-import CasinoAnalytics  from './components/CasinoAnalytics';
-import PdfPreviewModal  from './components/PdfPreviewModal';
+import LinkGenerator       from './components/LinkGenerator';
+import TripFinanceOS       from './components/TripFinanceOS';
+import CasinoAnalytics     from './components/CasinoAnalytics';
+import CasinoYearTracker   from './components/CasinoYearTracker';
+import PdfPreviewModal     from './components/PdfPreviewModal';
 
 // Set up pdfjs worker
 pdfjs.GlobalWorkerOptions.workerSrc =
@@ -38,9 +39,10 @@ export default function App() {
   };
 
   const TABS = [
-    { id: 'generator',  label: 'PDF Generator',    icon: FileText    },
-    { id: 'finance',    label: 'Trip Finance OS',   icon: Calculator  },
-    { id: 'analytics',  label: 'Casino Analytics',  icon: TrendingUp  },
+    { id: 'generator',  label: 'PDF Generator',    icon: FileText       },
+    { id: 'finance',    label: 'Trip Finance OS',   icon: Calculator     },
+    { id: 'analytics',  label: 'Casino Analytics',  icon: TrendingUp     },
+    { id: 'casinoyear', label: 'Casino Year',        icon: CalendarRange  },
   ];
 
   return (
@@ -83,6 +85,7 @@ export default function App() {
         {activeTab === 'generator'  && <LinkGenerator dark={dark} onPreview={openPreview} />}
         {activeTab === 'finance'    && <TripFinanceOS dark={dark} />}
         {activeTab === 'analytics'  && <CasinoAnalytics dark={dark} />}
+        {activeTab === 'casinoyear' && <CasinoYearTracker dark={dark} />}
 
         {/* PDF Preview Modal — outside tab so it works from anywhere */}
         <PdfPreviewModal
