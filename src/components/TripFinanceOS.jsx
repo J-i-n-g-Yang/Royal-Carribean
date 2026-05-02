@@ -712,6 +712,8 @@ export default function TripFinanceOS({ dark }) {
               <NumberField fieldKey="taxes"      label="Taxes & Port Fees"    prefix="S$" />
               <NumberField fieldKey="airfare"    label="Airfare"              prefix="S$" />
               <NumberField fieldKey="hotel"      label="Pre/Post Hotel"       prefix="S$" />
+              <NumberField fieldKey="roaming"    label="Roaming"              prefix="S$" />
+              <NumberField fieldKey="insurance"  label="Insurance"            prefix="S$" />
             </div>
           </Section>
 

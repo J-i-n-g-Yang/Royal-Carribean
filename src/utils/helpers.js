@@ -68,7 +68,7 @@ export function calcTotals(t, globalFxRate = 1) {
 
   // SGD bucket
   const cruiseBase = num(t.cruiseCost) + num(t.taxes);
-  const travel     = num(t.airfare) + num(t.hotel);
+  const travel     = num(t.airfare) + num(t.hotel) + num(t.roaming) + num(t.insurance);
   const totalSGD   = cruiseBase + travel;
 
   // USD bucket

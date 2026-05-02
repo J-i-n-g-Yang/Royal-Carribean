@@ -58,6 +58,8 @@ export const EMPTY_TRIP = {
   taxes: '',
   airfare: '',
   hotel: '',
+  roaming: '',
+  insurance: '',
   foodDrinks: '',
   excursions: '',
   spa: '',
