@@ -468,6 +468,22 @@ export default function TripFinanceOS({ dark }) {
     );
   };
 
+  // ── Past / Future split ───────────────────────────────────────────────────
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const pastTrips   = trips.filter((t) => t.sailDate && new Date(t.sailDate) < today);
+  const futureTrips = trips.filter((t) => !t.sailDate || new Date(t.sailDate) >= today);
+
+  // Sort past trips newest-first, future trips soonest-first
+  pastTrips.sort((a, b) => new Date(b.sailDate) - new Date(a.sailDate));
+  futureTrips.sort((a, b) => {
+    if (!a.sailDate && !b.sailDate) return 0;
+    if (!a.sailDate) return 1;
+    if (!b.sailDate) return -1;
+    return new Date(a.sailDate) - new Date(b.sailDate);
+  });
+
   // ── Aggregate stats ───────────────────────────────────────────────────────
   const allTotals = trips.map((t) => calcTotals(t, fxRate));
   const agg = allTotals.reduce((s, t) => ({
@@ -550,10 +566,44 @@ export default function TripFinanceOS({ dark }) {
         </div>
       )}
 
-      {/* Trip List */}
+      {/* Trip List — split by date */}
       {trips.length > 0 && !showNewTripForm && (
-        <div className="space-y-3 mb-5">
-          {trips.map((t) => <TripCard key={t.id} t={t} />)}
+        <div className="mb-5">
+          {/* ── Upcoming / Future Trips ── */}
+          {futureTrips.length > 0 && (
+            <div className="mb-5">
+              <div className={`flex items-center gap-2 mb-3 pb-1 border-b ${d('border-blue-200', 'border-blue-700')}`}>
+                <span className="text-base">🚢</span>
+                <h3 className={`text-sm font-bold uppercase tracking-wide ${d('text-blue-600', 'text-blue-400')}`}>
+                  Upcoming Trips
+                </h3>
+                <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${d('bg-blue-100 text-blue-600', 'bg-blue-900/40 text-blue-300')}`}>
+                  {futureTrips.length}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {futureTrips.map((t) => <TripCard key={t.id} t={t} />)}
+              </div>
+            </div>
+          )}
+
+          {/* ── Past Trips ── */}
+          {pastTrips.length > 0 && (
+            <div>
+              <div className={`flex items-center gap-2 mb-3 pb-1 border-b ${d('border-gray-200', 'border-gray-600')}`}>
+                <span className="text-base">🏁</span>
+                <h3 className={`text-sm font-bold uppercase tracking-wide ${d('text-gray-500', 'text-gray-400')}`}>
+                  Past Trips
+                </h3>
+                <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${d('bg-gray-100 text-gray-500', 'bg-gray-700 text-gray-400')}`}>
+                  {pastTrips.length}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {pastTrips.map((t) => <TripCard key={t.id} t={t} />)}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
