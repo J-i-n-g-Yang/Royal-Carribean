@@ -7,11 +7,29 @@ import { PERK_PRESETS, EMPTY_TRIP } from '../data/constants';
 import { storageGet, storageSet, calcTotals, fmt, fmtPts, num } from '../utils/helpers';
 
 // Defined outside TripFinanceOS so it has a stable identity across renders.
-// This prevents React from unmounting/remounting it on every keystroke,
-// which was causing inputs to lose focus after typing a single character.
+// Uses local state for the text inputs (same pattern as NumberField) so that
+// typing doesn't trigger a parent re-render that unmounts/remounts the inputs.
 function PerkInputRow({ dark, perkInput, setPerkInput, onAdd }) {
   const d = (light, darkCls) => (dark ? darkCls : light);
   const isCustom = perkInput.preset === 'Custom Perk';
+
+  // Local state — keeps keystrokes inside this component
+  const [localLabel, setLocalLabel] = React.useState('');
+  const [localValue, setLocalValue] = React.useState('');
+
+  // Reset local state whenever the preset changes (e.g. after Add clears it)
+  useEffect(() => {
+    setLocalLabel(perkInput.customLabel ?? '');
+    setLocalValue(perkInput.customValue ?? '');
+  }, [perkInput.preset, perkInput.customLabel, perkInput.customValue]);
+
+  const handleLabelBlur = () => {
+    setPerkInput((prev) => ({ ...prev, customLabel: localLabel }));
+  };
+
+  const handleValueBlur = () => {
+    setPerkInput((prev) => ({ ...prev, customValue: localValue }));
+  };
 
   return (
     <div className="flex gap-2 mb-3 flex-wrap">
@@ -33,23 +51,25 @@ function PerkInputRow({ dark, perkInput, setPerkInput, onAdd }) {
           <input
             type="text"
             placeholder="Perk description"
-            value={perkInput.customLabel ?? ''}
-            onChange={(e) => setPerkInput((prev) => ({ ...prev, customLabel: e.target.value }))}
+            value={localLabel}
+            onChange={(e) => setLocalLabel(e.target.value)}
+            onBlur={handleLabelBlur}
             className={`w-40 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`}
           />
           <input
             type="text"
             inputMode="decimal"
             placeholder="$ value"
-            value={perkInput.customValue ?? ''}
-            onChange={(e) => setPerkInput((prev) => ({ ...prev, customValue: e.target.value }))}
+            value={localValue}
+            onChange={(e) => setLocalValue(e.target.value)}
+            onBlur={handleValueBlur}
             className={`w-24 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`}
           />
         </>
       )}
 
       <button
-        onClick={onAdd}
+        onClick={() => onAdd(localLabel, localValue)}
         disabled={!perkInput.preset}
         className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm rounded-lg flex items-center gap-1"
       >
@@ -74,11 +94,11 @@ export default function TripFinanceOS({ dark }) {
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  const addPerk = () => {
+  const addPerk = (localLabel, localValue) => {
     const preset = PERK_PRESETS.find((p) => p.label === perkInput.preset);
     if (!preset) return;
-    const label = preset.label === 'Custom Perk' ? (perkInput.customLabel || 'Custom Perk') : preset.label;
-    const value = preset.label === 'Custom Perk' ? num(perkInput.customValue) : preset.value;
+    const label = preset.label === 'Custom Perk' ? (localLabel || perkInput.customLabel || 'Custom Perk') : preset.label;
+    const value = preset.label === 'Custom Perk' ? num(localValue ?? perkInput.customValue) : preset.value;
     if (!label || value <= 0) return;
     setNewTrip((t) => ({ ...t, perks: [...(t.perks || []), { id: Date.now(), label, value }] }));
     setPerkInput({ preset: '', customLabel: '', customValue: '' });
