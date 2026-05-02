@@ -98,15 +98,27 @@ export function calcTotals(t, fxRate = 1) {
 }
 
 /**
- * Fetch the live USD → SGD exchange rate from Frankfurter (ECB data, free, no key).
- * Returns null on any failure so callers can fall back gracefully.
+ * Fetch the live USD → SGD exchange rate.
+ * Tries Frankfurter (ECB data, new domain) first, then falls back to ExchangeRate-API.
+ * Both are free, no API key, and CORS-friendly from the browser.
+ * Returns null on total failure so the caller keeps the cached/manual rate.
  */
 export async function fetchFxRate() {
+  // Primary: Frankfurter v2 (ECB data, updated daily)
   try {
-    const res  = await fetch('https://api.frankfurter.app/latest?from=USD&to=SGD');
+    const res  = await fetch('https://api.frankfurter.dev/v2/rates?base=USD&quotes=SGD');
+    const data = await res.json();
+    // v2 returns { rates: { SGD: { rate: 1.234 } } }
+    const rate = data?.rates?.SGD?.rate ?? data?.rates?.SGD ?? null;
+    if (rate) return rate;
+  } catch {}
+
+  // Fallback: ExchangeRate-API open endpoint (no key needed, updated daily)
+  try {
+    const res  = await fetch('https://open.er-api.com/v6/latest/USD');
     const data = await res.json();
     return data?.rates?.SGD ?? null;
-  } catch {
-    return null;
-  }
+  } catch {}
+
+  return null;
 }
