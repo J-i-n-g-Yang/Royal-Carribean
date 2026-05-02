@@ -268,7 +268,16 @@ export default function TripFinanceOS({ dark }) {
       {/* Grand total converted */}
       <div className={`rounded-lg p-3 ${d('bg-gray-100', 'bg-gray-700')}`}>
         <p className={`text-xs font-bold mb-2 ${d('text-gray-600', 'text-gray-300')}`}>
-          Grand Total <span className={`text-xs font-normal ${d('text-gray-400','text-gray-500')}`}>(rate: 1 USD = {fxRate.toFixed(4)} SGD)</span>
+          Grand Total{' '}
+          {totals.hasTripRate ? (
+            <span className={`text-xs font-normal ${d('text-green-600','text-green-400')}`}>
+              (trip rate: 1 USD = {totals.usdFxRate.toFixed(4)} SGD 💱)
+            </span>
+          ) : (
+            <span className={`text-xs font-normal ${d('text-gray-400','text-gray-500')}`}>
+              (rate: 1 USD = {totals.usdFxRate.toFixed(4)} SGD)
+            </span>
+          )}
         </p>
         <div className="grid grid-cols-2 gap-2">
           <div>
@@ -333,6 +342,11 @@ export default function TripFinanceOS({ dark }) {
             <p className={`font-bold ${d('text-gray-900', 'text-white')}`}>{t.name || 'Unnamed Trip'}</p>
             <p className={`text-xs mt-0.5 ${d('text-gray-500', 'text-gray-400')}`}>
               {t.ship}{t.sailDate ? ` · ${t.sailDate}` : ''}{t.nights ? ` · ${t.nights}N` : ''}
+              {totals.hasTripRate && (
+                <span className={`ml-1 font-medium ${d('text-green-600','text-green-400')}`}>
+                  · 💱 {totals.usdFxRate.toFixed(4)}
+                </span>
+              )}
             </p>
           </div>
           <div className="flex gap-2">
@@ -537,15 +551,51 @@ export default function TripFinanceOS({ dark }) {
             </div>
           </Section>
 
-          <Section id="casino" title="Casino (Optional)" icon={Trophy} currency="USD">
+          <Section id="casino" title="Casino & Spending" icon={Trophy} currency="USD">
             <div className={`flex items-start gap-2 mb-3 p-2 rounded-lg text-xs ${d('bg-amber-50 text-amber-700', 'bg-amber-900/20 text-amber-400')}`}>
               <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-              <span>Casino charges are in USD. Data is stored locally and never shared.</span>
+              <span>Casino &amp; onboard charges are in USD. Data is stored locally and never shared.</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <NumberField fieldKey="casinoSpend"        label="Casino Buy-ins / Losses" />
               <NumberField fieldKey="casinoPointsEarned" label="Casino Points Earned"    prefix="🏆" />
               <NumberField fieldKey="casinoPointsGoal"   label="Points Goal (optional)"  prefix="🎯" />
+            </div>
+
+            {/* Per-trip exchange rate override */}
+            <div className={`mt-4 pt-3 border-t ${d('border-gray-100','border-gray-700')}`}>
+              <p className={`text-xs font-semibold mb-1 ${d('text-gray-600','text-gray-300')}`}>
+                💱 Exchange Rate for This Trip's USD Spending
+              </p>
+              <p className={`text-xs mb-2 ${d('text-gray-400','text-gray-500')}`}>
+                Set the SGD/USD rate you exchanged at for this cruise. Applies to casino &amp; all onboard spending. Leave blank to use the global rate ({fxRate.toFixed(4)}).
+              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-sm ${d('text-gray-500','text-gray-400')}`}>1 USD =</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder={fxRate.toFixed(4)}
+                  value={newTrip.tripFxRate ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^\d.]/g, '');
+                    setNewTrip((prev) => ({ ...prev, tripFxRate: val }));
+                  }}
+                  className={`w-32 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800','bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`}
+                />
+                <span className={`text-sm ${d('text-gray-500','text-gray-400')}`}>SGD</span>
+                {num(newTrip.tripFxRate) > 0 && (
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${d('bg-green-100 text-green-700','bg-green-900/30 text-green-400')}`}>
+                    ✓ Custom rate active
+                  </span>
+                )}
+                {num(newTrip.tripFxRate) > 0 && (
+                  <button
+                    onClick={() => setNewTrip((prev) => ({ ...prev, tripFxRate: '' }))}
+                    className={`text-xs px-2 py-1 rounded-lg ${d('bg-gray-100 hover:bg-gray-200 text-gray-500','bg-gray-700 hover:bg-gray-600 text-gray-400')}`}
+                  >Clear</button>
+                )}
+              </div>
             </div>
           </Section>
 

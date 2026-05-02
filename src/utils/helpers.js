@@ -53,10 +53,19 @@ export const num = (v) => parseFloat(v) || 0;
  * SGD bucket: cruise fare, taxes, airfare, pre/post hotel (paid before boarding)
  * USD bucket: all onboard spending, casino, perks (transacted in USD onboard)
  *
- * @param {object} t       - trip object
- * @param {number} fxRate  - 1 USD = fxRate SGD  (default 1 = no conversion)
+ * @param {object} t          - trip object
+ * @param {number} globalFxRate - 1 USD = globalFxRate SGD (app-level default)
+ *
+ * If the trip has a `tripFxRate` field set, that rate is used for converting
+ * the USD bucket (gambling & onboard spending) to SGD instead of the global rate.
+ * The SGD bucket (cruise cost, taxes, airfare, hotel) always uses the global rate
+ * for the USD grand-total conversion since those are already in SGD.
  */
-export function calcTotals(t, fxRate = 1) {
+export function calcTotals(t, globalFxRate = 1) {
+  // Use per-trip rate for USD→SGD conversion if set, otherwise fall back to global
+  const tripRate = num(t.tripFxRate);
+  const usdFxRate = tripRate > 0 ? tripRate : globalFxRate;
+
   // SGD bucket
   const cruiseBase = num(t.cruiseCost) + num(t.taxes);
   const travel     = num(t.airfare) + num(t.hotel);
@@ -70,10 +79,10 @@ export function calcTotals(t, fxRate = 1) {
   // Perks are USD (onboard credits, cabin comps, etc.)
   const perksUSD = (t.perks || []).reduce((s, p) => s + num(p.value), 0);
 
-  // Grand totals converted to each currency
-  const grandSGD = totalSGD + totalUSD * fxRate;
-  const grandUSD = (fxRate > 0 ? totalSGD / fxRate : 0) + totalUSD;
-  const netSGD   = grandSGD - perksUSD * fxRate;
+  // Grand totals: USD bucket uses per-trip rate; SGD bucket converts via global rate for USD view
+  const grandSGD = totalSGD + totalUSD * usdFxRate;
+  const grandUSD = (globalFxRate > 0 ? totalSGD / globalFxRate : 0) + totalUSD;
+  const netSGD   = grandSGD - perksUSD * usdFxRate;
   const netUSD   = grandUSD - perksUSD;
 
   // Casino points
@@ -89,6 +98,8 @@ export function calcTotals(t, fxRate = 1) {
     perksUSD,
     grandSGD, grandUSD,
     netSGD, netUSD,
+    usdFxRate,           // the effective rate used for USD → SGD (per-trip or global)
+    hasTripRate: tripRate > 0,  // true when per-trip rate is active
     // Legacy aliases so nothing else breaks
     total:      grandSGD,
     perksValue: perksUSD,

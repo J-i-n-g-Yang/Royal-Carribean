@@ -68,4 +68,5 @@ export const EMPTY_TRIP = {
   casinoPointsGoal: '',
   perks: [],
   notes: '',
+  tripFxRate: '',   // per-trip SGD/USD rate override for gambling & spending
 };
