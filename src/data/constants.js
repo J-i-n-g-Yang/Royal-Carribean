@@ -58,6 +58,8 @@ export const EMPTY_TRIP = {
   taxes: '',
   airfare: '',
   hotel: '',
+  roaming: '',
+  insurance: '',
   foodDrinks: '',
   excursions: '',
   spa: '',
@@ -68,4 +70,5 @@ export const EMPTY_TRIP = {
   casinoPointsGoal: '',
   perks: [],
   notes: '',
+  tripFxRate: '',   // per-trip SGD/USD rate override for gambling & spending
 };
