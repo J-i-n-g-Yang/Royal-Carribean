@@ -396,14 +396,48 @@ export default function TripFinanceOS({ dark }) {
     </div>
   );
 
-  const TripCard = ({ t }) => {
+  const TripCard = ({ t, isPast }) => {
     const totals = calcTotals(t, fxRate);
+
+    // Days until sail countdown (for upcoming trips)
+    const daysUntil = (() => {
+      if (!t.sailDate || isPast) return null;
+      const sail = new Date(t.sailDate);
+      sail.setHours(0, 0, 0, 0);
+      const diff = Math.round((sail - today) / (1000 * 60 * 60 * 24));
+      return diff;
+    })();
+
     return (
-      <div className={`rounded-xl border p-4 cursor-pointer transition-all hover:shadow-md ${d('bg-white border-gray-200 hover:border-blue-300', 'bg-gray-800 border-gray-700 hover:border-blue-600')}`}
+      <div
+        className={`rounded-xl border p-4 cursor-pointer transition-all hover:shadow-md ${
+          isPast
+            ? d('bg-gray-50 border-gray-200 hover:border-gray-300 opacity-70', 'bg-gray-900 border-gray-700 hover:border-gray-500 opacity-60')
+            : d('bg-white border-gray-200 hover:border-blue-300', 'bg-gray-800 border-gray-700 hover:border-blue-600')
+        }`}
         onClick={() => setViewingTrip(viewingTrip === t.id ? null : t.id)}>
+
         <div className="flex items-start justify-between">
-          <div>
-            <p className={`font-bold ${d('text-gray-900', 'text-white')}`}>{t.name || 'Unnamed Trip'}</p>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className={`font-bold ${isPast ? d('text-gray-500', 'text-gray-400') : d('text-gray-900', 'text-white')}`}>
+                {t.name || 'Unnamed Trip'}
+              </p>
+              {/* Countdown badge for upcoming trips */}
+              {daysUntil !== null && (
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  daysUntil === 0
+                    ? 'bg-green-100 text-green-700'
+                    : daysUntil <= 7
+                    ? 'bg-orange-100 text-orange-700'
+                    : daysUntil <= 30
+                    ? 'bg-yellow-100 text-yellow-700'
+                    : 'bg-blue-100 text-blue-600'
+                }`}>
+                  {daysUntil === 0 ? '⚓ Today!' : `⏳ ${daysUntil}d to go`}
+                </span>
+              )}
+            </div>
             <p className={`text-xs mt-0.5 ${d('text-gray-500', 'text-gray-400')}`}>
               {t.ship}{t.sailDate ? ` · ${t.sailDate}` : ''}{t.nights ? ` · ${t.nights}N` : ''}
               {totals.hasTripRate && (
@@ -413,7 +447,7 @@ export default function TripFinanceOS({ dark }) {
               )}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 ml-2 shrink-0">
             <button onClick={(e) => { e.stopPropagation(); editTrip(t); }}
               className={`p-1.5 rounded-lg text-xs ${d('bg-gray-100 hover:bg-gray-200 text-gray-600', 'bg-gray-700 hover:bg-gray-600 text-gray-300')}`}>Edit</button>
             <button onClick={(e) => { e.stopPropagation(); deleteTrip(t.id); }}
@@ -426,8 +460,8 @@ export default function TripFinanceOS({ dark }) {
         {/* Quick stats: SGD / USD / Net */}
         <div className="grid grid-cols-3 gap-2 mt-3">
           {[
-            ['SGD Spent', fmtSGD(totals.totalSGD), d('bg-red-50 text-red-500','bg-red-900/20 text-red-400'), d('text-red-600','text-red-300')],
-            ['USD Spent', fmt(totals.totalUSD),     d('bg-blue-50 text-blue-500','bg-blue-900/20 text-blue-400'), d('text-blue-700','text-blue-300')],
+            ['SGD Spent', fmtSGD(totals.totalSGD), d('bg-red-50 text-red-500','bg-red-900/20 text-red-400'), isPast ? d('text-red-400','text-red-400') : d('text-red-600','text-red-300')],
+            ['USD Spent', fmt(totals.totalUSD),     d('bg-blue-50 text-blue-500','bg-blue-900/20 text-blue-400'), isPast ? d('text-blue-400','text-blue-400') : d('text-blue-700','text-blue-300')],
             ['Net (SGD)', fmtSGD(totals.netSGD),
               totals.netSGD <= 0 ? d('bg-green-50 text-green-500','bg-green-900/20 text-green-400') : d('bg-orange-50 text-orange-500','bg-orange-900/20 text-orange-400'),
               totals.netSGD <= 0 ? d('text-green-700','text-green-300') : d('text-orange-700','text-orange-300')],
@@ -484,20 +518,6 @@ export default function TripFinanceOS({ dark }) {
     return new Date(a.sailDate) - new Date(b.sailDate);
   });
 
-  // ── Aggregate stats ───────────────────────────────────────────────────────
-  const allTotals = trips.map((t) => calcTotals(t, fxRate));
-  const agg = allTotals.reduce((s, t) => ({
-    totalSGD: s.totalSGD + t.totalSGD,
-    totalUSD: s.totalUSD + t.totalUSD,
-    grandSGD: s.grandSGD + t.grandSGD,
-    grandUSD: s.grandUSD + t.grandUSD,
-    netSGD:   s.netSGD   + t.netSGD,
-    netUSD:   s.netUSD   + t.netUSD,
-    perksUSD: s.perksUSD + t.perksUSD,
-    pts:      s.pts      + t.pts,
-    casino:   s.casino   + t.casino,
-  }), { totalSGD:0, totalUSD:0, grandSGD:0, grandUSD:0, netSGD:0, netUSD:0, perksUSD:0, pts:0, casino:0 });
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div>
@@ -529,42 +549,83 @@ export default function TripFinanceOS({ dark }) {
         </div>
       </div>
 
-      {/* Aggregate Banner */}
-      {trips.length > 1 && (
-        <div className={`rounded-xl p-4 mb-5 border ${d('bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100', 'bg-gradient-to-r from-blue-900/20 to-indigo-900/20 border-blue-800')}`}>
-          <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${d('text-blue-700', 'text-blue-300')}`}>
-            <BarChart2 className="w-4 h-4 inline mr-1" />All Trips Summary
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              ['SGD Spent',    fmtSGD(agg.totalSGD), d('text-red-600','text-red-300')],
-              ['USD Spent',    fmt(agg.totalUSD),     d('text-blue-600','text-blue-300')],
-              ['Net (SGD)',    fmtSGD(agg.netSGD),    agg.netSGD <= 0 ? d('text-green-700','text-green-300') : d('text-orange-600','text-orange-300')],
-              ['Net (USD)',    fmt(agg.netUSD),        agg.netUSD <= 0 ? d('text-green-700','text-green-300') : d('text-orange-600','text-orange-300')],
-            ].map(([l, v, cls]) => (
-              <div key={l}>
-                <p className={`text-xs ${d('text-gray-500', 'text-gray-400')}`}>{l}</p>
-                <p className={`text-base font-bold ${cls}`}>{v}</p>
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 gap-3 mt-2 pt-2 border-t border-blue-100">
-            <div>
-              <p className={`text-xs ${d('text-gray-500','text-gray-400')}`}>Grand Total (SGD)</p>
-              <p className={`text-sm font-bold ${d('text-gray-700','text-gray-200')}`}>{fmtSGD(agg.grandSGD)}</p>
-            </div>
-            <div>
-              <p className={`text-xs ${d('text-gray-500','text-gray-400')}`}>Grand Total (USD)</p>
-              <p className={`text-sm font-bold ${d('text-gray-700','text-gray-200')}`}>{fmt(agg.grandUSD)}</p>
-            </div>
-          </div>
-          {agg.casino > 0 && agg.pts > 0 && (
-            <p className={`text-xs mt-2 ${d('text-gray-500', 'text-gray-400')}`}>
-              Avg casino cost/pt: <span className="font-semibold">{fmt(agg.casino / agg.pts)}</span> across all trips
+      {/* Split Summary Banners — Upcoming vs Past */}
+      {trips.length > 0 && (() => {
+        const makeSummary = (tripList) => tripList.map((t) => calcTotals(t, fxRate)).reduce((s, t) => ({
+          totalSGD: s.totalSGD + t.totalSGD,
+          totalUSD: s.totalUSD + t.totalUSD,
+          grandSGD: s.grandSGD + t.grandSGD,
+          grandUSD: s.grandUSD + t.grandUSD,
+          netSGD:   s.netSGD   + t.netSGD,
+          netUSD:   s.netUSD   + t.netUSD,
+          pts:      s.pts      + t.pts,
+          casino:   s.casino   + t.casino,
+        }), { totalSGD:0, totalUSD:0, grandSGD:0, grandUSD:0, netSGD:0, netUSD:0, pts:0, casino:0 });
+
+        const futureSummary = makeSummary(futureTrips);
+        const pastSummary   = makeSummary(pastTrips);
+
+        const SummaryBanner = ({ label, emoji, summary, gradientLight, gradientDark, borderLight, borderDark, titleCls }) => (
+          <div className={`rounded-xl p-4 mb-3 border ${d(`bg-gradient-to-r ${gradientLight} ${borderLight}`, `bg-gradient-to-r ${gradientDark} ${borderDark}`)}`}>
+            <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${titleCls}`}>
+              <BarChart2 className="w-4 h-4 inline mr-1" />{emoji} {label}
             </p>
-          )}
-        </div>
-      )}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                ['SGD Spent', fmtSGD(summary.totalSGD), d('text-red-600','text-red-300')],
+                ['USD Spent', fmt(summary.totalUSD),     d('text-blue-600','text-blue-300')],
+                ['Net (SGD)', fmtSGD(summary.netSGD),    summary.netSGD <= 0 ? d('text-green-700','text-green-300') : d('text-orange-600','text-orange-300')],
+                ['Net (USD)', fmt(summary.netUSD),        summary.netUSD <= 0 ? d('text-green-700','text-green-300') : d('text-orange-600','text-orange-300')],
+              ].map(([l, v, cls]) => (
+                <div key={l}>
+                  <p className={`text-xs ${d('text-gray-500','text-gray-400')}`}>{l}</p>
+                  <p className={`text-base font-bold ${cls}`}>{v}</p>
+                </div>
+              ))}
+            </div>
+            <div className={`grid grid-cols-2 gap-3 mt-2 pt-2 border-t ${d(borderLight.replace('border-','border-t-'), borderDark.replace('border-','border-t-'))}`}>
+              <div>
+                <p className={`text-xs ${d('text-gray-500','text-gray-400')}`}>Grand Total (SGD)</p>
+                <p className={`text-sm font-bold ${d('text-gray-700','text-gray-200')}`}>{fmtSGD(summary.grandSGD)}</p>
+              </div>
+              <div>
+                <p className={`text-xs ${d('text-gray-500','text-gray-400')}`}>Grand Total (USD)</p>
+                <p className={`text-sm font-bold ${d('text-gray-700','text-gray-200')}`}>{fmt(summary.grandUSD)}</p>
+              </div>
+            </div>
+            {summary.casino > 0 && summary.pts > 0 && (
+              <p className={`text-xs mt-2 ${d('text-gray-500','text-gray-400')}`}>
+                Avg casino cost/pt: <span className="font-semibold">{fmt(summary.casino / summary.pts)}</span>
+              </p>
+            )}
+          </div>
+        );
+
+        return (
+          <div className="mb-5">
+            {futureTrips.length > 0 && (
+              <SummaryBanner
+                label="Upcoming Spend"
+                emoji="🚢"
+                summary={futureSummary}
+                gradientLight="from-blue-50 to-indigo-50" gradientDark="from-blue-900/20 to-indigo-900/20"
+                borderLight="border-blue-100" borderDark="border-blue-800"
+                titleCls={d('text-blue-700','text-blue-300')}
+              />
+            )}
+            {pastTrips.length > 0 && (
+              <SummaryBanner
+                label="Past Spend"
+                emoji="🏁"
+                summary={pastSummary}
+                gradientLight="from-gray-50 to-slate-50" gradientDark="from-gray-800/40 to-slate-800/40"
+                borderLight="border-gray-200" borderDark="border-gray-700"
+                titleCls={d('text-gray-500','text-gray-400')}
+              />
+            )}
+          </div>
+        );
+      })()}
 
       {/* Trip List — split by date */}
       {trips.length > 0 && !showNewTripForm && (
@@ -582,7 +643,7 @@ export default function TripFinanceOS({ dark }) {
                 </span>
               </div>
               <div className="space-y-3">
-                {futureTrips.map((t) => <TripCard key={t.id} t={t} />)}
+                {futureTrips.map((t) => <TripCard key={t.id} t={t} isPast={false} />)}
               </div>
             </div>
           )}
@@ -600,7 +661,7 @@ export default function TripFinanceOS({ dark }) {
                 </span>
               </div>
               <div className="space-y-3">
-                {pastTrips.map((t) => <TripCard key={t.id} t={t} />)}
+                {pastTrips.map((t) => <TripCard key={t.id} t={t} isPast={true} />)}
               </div>
             </div>
           )}
