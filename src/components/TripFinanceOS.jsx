@@ -6,6 +6,59 @@ import {
 import { PERK_PRESETS, EMPTY_TRIP } from '../data/constants';
 import { storageGet, storageSet, calcTotals, fmt, fmtPts, num } from '../utils/helpers';
 
+// Defined outside TripFinanceOS so it has a stable identity across renders.
+// This prevents React from unmounting/remounting it on every keystroke,
+// which was causing inputs to lose focus after typing a single character.
+function PerkInputRow({ dark, perkInput, setPerkInput, onAdd }) {
+  const d = (light, darkCls) => (dark ? darkCls : light);
+  const isCustom = perkInput.preset === 'Custom Perk';
+
+  return (
+    <div className="flex gap-2 mb-3 flex-wrap">
+      <select
+        value={perkInput.preset}
+        onChange={(e) => setPerkInput((p) => ({ ...p, preset: e.target.value }))}
+        className={`flex-1 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white')}`}
+      >
+        <option value="">Select a perk…</option>
+        {PERK_PRESETS.map((p) => (
+          <option key={p.label} value={p.label}>
+            {p.label}{p.value > 0 ? ` (~$${p.value})` : ''}
+          </option>
+        ))}
+      </select>
+
+      {isCustom && (
+        <>
+          <input
+            type="text"
+            placeholder="Perk description"
+            value={perkInput.customLabel ?? ''}
+            onChange={(e) => setPerkInput((prev) => ({ ...prev, customLabel: e.target.value }))}
+            className={`w-40 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`}
+          />
+          <input
+            type="text"
+            inputMode="decimal"
+            placeholder="$ value"
+            value={perkInput.customValue ?? ''}
+            onChange={(e) => setPerkInput((prev) => ({ ...prev, customValue: e.target.value }))}
+            className={`w-24 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`}
+          />
+        </>
+      )}
+
+      <button
+        onClick={onAdd}
+        disabled={!perkInput.preset}
+        className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm rounded-lg flex items-center gap-1"
+      >
+        <Plus className="w-4 h-4" /> Add
+      </button>
+    </div>
+  );
+}
+
 export default function TripFinanceOS({ dark }) {
   const d = (light, darkCls) => (dark ? darkCls : light);
 
@@ -356,64 +409,13 @@ export default function TripFinanceOS({ dark }) {
           </Section>
 
           <Section id="perks" title="Perks & Rewards Received" icon={Gift}>
-            <div className="flex gap-2 mb-3 flex-wrap">
-              <select value={perkInput.preset} onChange={(e) => setPerkInput((p) => ({ ...p, preset: e.target.value }))}
-                className={`flex-1 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white')}`}>
-                <option value="">Select a perk…</option>
-                {PERK_PRESETS.map((p) => <option key={p.label} value={p.label}>{p.label}{p.value > 0 ? ` (~$${p.value})` : ''}</option>)}
-              </select>
-              <div className={perkInput.preset === 'Custom Perk' ? 'flex gap-2' : 'hidden'}>
-                <input
-                  type="text"
-                  placeholder="Perk description"
-                  value={perkInput.customLabel ?? ''}
-                  onChange={(e) =>
-                    setPerkInput((prev) => ({
-                      ...prev,
-                      customLabel: e.target.value
-                    }))
-                  }
-                  className={`w-40 px-3 py-2 rounded-lg border text-sm ${
-                    d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white')
-                  }`}
-                  />
-                
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="$ value"
-                  value={perkInput.customValue ?? ''}
-                  onChange={(e) =>
-                    setPerkInput((prev) => ({
-                      ...prev,
-                      customValue: e.target.value
-                    }))
-                  }
-                  className={`w-24 px-3 py-2 rounded-lg border text-sm ${
-                    d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white')
-                  }`}
-                  />
-              </div>
-              {/* {perkInput.preset === 'Custom Perk' && (
-                <>
-                  <input type="text" placeholder="Perk description" value={perkInput.customLabel || ''}
-                    onChange={(e) => setPerkInput((prev) => ({ ...prev, customLabel: e.target.value }))}
-                    className={`w-40 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`} />
-                  <input type="text" inputMode="decimal" placeholder="$ value" value={perkInput.customValue || ''}
-                    onChange={(e) => {
-                      let val = e.target.value.replace(/[^\d.]/g, '');
-                      const parts = val.split('.');
-                      const cleaned = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : val;
-                      setPerkInput((prev) => ({ ...prev, customValue: cleaned }));
-                    }}
-                    className={`w-24 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`} />
-                </>
-              )} */}
-              <button onClick={addPerk} disabled={!perkInput.preset}
-                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-sm rounded-lg flex items-center gap-1">
-                <Plus className="w-4 h-4" /> Add
-              </button>
-            </div>
+            <PerkInputRow
+              dark={dark}
+              perkInput={perkInput}
+              setPerkInput={setPerkInput}
+              onAdd={addPerk}
+            />
+
             {newTrip.perks?.length > 0 && (
               <div className="space-y-1">
                 {newTrip.perks.map((p) => (
