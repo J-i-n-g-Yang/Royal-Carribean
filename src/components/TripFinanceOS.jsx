@@ -83,6 +83,70 @@ function PerkInputRow({ dark, perkInput, setPerkInput, onAdd }) {
   );
 }
 
+// ── TripFxRateField ───────────────────────────────────────────────────────────
+// Per-trip exchange rate input. Uses local state + onBlur (same pattern as
+// NumberField) so the user can type the full rate before the parent re-renders.
+function TripFxRateField({ dark, d, activeTrip, newTrip, setNewTrip, globalFxRate }) {
+  const [localVal, setLocalVal] = React.useState(newTrip.tripFxRate ?? '');
+
+  useEffect(() => {
+    setLocalVal(newTrip.tripFxRate ?? '');
+  // eslint-disable-next-line
+  }, [activeTrip]);
+
+  const handleBlur = () => {
+    let val = localVal.replace(/[^\d.]/g, '');
+    const parts = val.split('.');
+    if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
+    setLocalVal(val);
+    setNewTrip((prev) => ({ ...prev, tripFxRate: val }));
+  };
+
+  const handleClear = () => {
+    setLocalVal('');
+    setNewTrip((prev) => ({ ...prev, tripFxRate: '' }));
+  };
+
+  const isActive = num(newTrip.tripFxRate) > 0;
+
+  return (
+    <div className={`mt-4 pt-3 border-t ${d('border-gray-100', 'border-gray-700')}`}>
+      <p className={`text-xs font-semibold mb-1 ${d('text-gray-600', 'text-gray-300')}`}>
+        💱 Exchange Rate for This Trip's USD Spending
+      </p>
+      <p className={`text-xs mb-2 ${d('text-gray-400', 'text-gray-500')}`}>
+        Set the SGD/USD rate you exchanged at for this cruise. Applies to casino &amp; all onboard
+        spending. Leave blank to use the global rate ({globalFxRate.toFixed(4)}).
+      </p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className={`text-sm ${d('text-gray-500', 'text-gray-400')}`}>1 USD =</span>
+        <input
+          type="text"
+          inputMode="decimal"
+          placeholder={globalFxRate.toFixed(4)}
+          value={localVal}
+          onChange={(e) => setLocalVal(e.target.value)}
+          onBlur={handleBlur}
+          onFocus={() => setLocalVal((v) => v.toString().replace(/,/g, ''))}
+          className={`w-32 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`}
+        />
+        <span className={`text-sm ${d('text-gray-500', 'text-gray-400')}`}>SGD</span>
+        {isActive && (
+          <span className={`text-xs px-2 py-1 rounded-full font-medium ${d('bg-green-100 text-green-700', 'bg-green-900/30 text-green-400')}`}>
+            ✓ Custom rate active
+          </span>
+        )}
+        {isActive && (
+          <button
+            onClick={handleClear}
+            className={`text-xs px-2 py-1 rounded-lg ${d('bg-gray-100 hover:bg-gray-200 text-gray-500', 'bg-gray-700 hover:bg-gray-600 text-gray-400')}`}
+          >Clear</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function TripFinanceOS({ dark }) {
   const d = (light, darkCls) => (dark ? darkCls : light);
@@ -563,40 +627,14 @@ export default function TripFinanceOS({ dark }) {
             </div>
 
             {/* Per-trip exchange rate override */}
-            <div className={`mt-4 pt-3 border-t ${d('border-gray-100','border-gray-700')}`}>
-              <p className={`text-xs font-semibold mb-1 ${d('text-gray-600','text-gray-300')}`}>
-                💱 Exchange Rate for This Trip's USD Spending
-              </p>
-              <p className={`text-xs mb-2 ${d('text-gray-400','text-gray-500')}`}>
-                Set the SGD/USD rate you exchanged at for this cruise. Applies to casino &amp; all onboard spending. Leave blank to use the global rate ({fxRate.toFixed(4)}).
-              </p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`text-sm ${d('text-gray-500','text-gray-400')}`}>1 USD =</span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder={fxRate.toFixed(4)}
-                  value={newTrip.tripFxRate ?? ''}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/[^\d.]/g, '');
-                    setNewTrip((prev) => ({ ...prev, tripFxRate: val }));
-                  }}
-                  className={`w-32 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800','bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`}
-                />
-                <span className={`text-sm ${d('text-gray-500','text-gray-400')}`}>SGD</span>
-                {num(newTrip.tripFxRate) > 0 && (
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${d('bg-green-100 text-green-700','bg-green-900/30 text-green-400')}`}>
-                    ✓ Custom rate active
-                  </span>
-                )}
-                {num(newTrip.tripFxRate) > 0 && (
-                  <button
-                    onClick={() => setNewTrip((prev) => ({ ...prev, tripFxRate: '' }))}
-                    className={`text-xs px-2 py-1 rounded-lg ${d('bg-gray-100 hover:bg-gray-200 text-gray-500','bg-gray-700 hover:bg-gray-600 text-gray-400')}`}
-                  >Clear</button>
-                )}
-              </div>
-            </div>
+            <TripFxRateField
+              dark={dark}
+              d={d}
+              activeTrip={activeTrip}
+              newTrip={newTrip}
+              setNewTrip={setNewTrip}
+              globalFxRate={fxRate}
+            />
           </Section>
 
           <Section id="perks" title="Perks & Rewards Received" icon={Gift} currency="USD">
