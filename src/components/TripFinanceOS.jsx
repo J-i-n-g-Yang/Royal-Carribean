@@ -1,35 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import {
   Calculator, DollarSign, Trophy, Gift, Info, Plus, Trash2,
-  BarChart2, ChevronDown, ChevronUp, Anchor,
+  BarChart2, ChevronDown, ChevronUp, Anchor, RefreshCw,
 } from 'lucide-react';
 import { PERK_PRESETS, EMPTY_TRIP } from '../data/constants';
-import { storageGet, storageSet, calcTotals, fmt, fmtPts, num } from '../utils/helpers';
+import { storageGet, storageSet, calcTotals, fmt, fmtSGD, fmtPts, num, fetchFxRate } from '../utils/helpers';
 
-// Defined outside TripFinanceOS so it has a stable identity across renders.
-// Uses local state for the text inputs (same pattern as NumberField) so that
-// typing doesn't trigger a parent re-render that unmounts/remounts the inputs.
+// ── Currency badge helper ────────────────────────────────────────────────────
+// Small inline label showing which currency a section uses
+function CurrencyTag({ currency }) {
+  const isSGD = currency === 'SGD';
+  return (
+    <span className={`ml-2 text-xs font-semibold px-1.5 py-0.5 rounded ${
+      isSGD ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
+    }`}>
+      {currency}
+    </span>
+  );
+}
+
+// ── PerkInputRow ─────────────────────────────────────────────────────────────
+// Defined outside TripFinanceOS so React doesn't remount it on every parent render.
+// Uses local state for text inputs (same pattern as NumberField) to prevent
+// losing focus after a single keystroke.
 function PerkInputRow({ dark, perkInput, setPerkInput, onAdd }) {
   const d = (light, darkCls) => (dark ? darkCls : light);
   const isCustom = perkInput.preset === 'Custom Perk';
 
-  // Local state — keeps keystrokes inside this component
   const [localLabel, setLocalLabel] = React.useState('');
   const [localValue, setLocalValue] = React.useState('');
 
-  // Reset local state whenever the preset changes (e.g. after Add clears it)
   useEffect(() => {
     setLocalLabel(perkInput.customLabel ?? '');
     setLocalValue(perkInput.customValue ?? '');
   }, [perkInput.preset, perkInput.customLabel, perkInput.customValue]);
-
-  const handleLabelBlur = () => {
-    setPerkInput((prev) => ({ ...prev, customLabel: localLabel }));
-  };
-
-  const handleValueBlur = () => {
-    setPerkInput((prev) => ({ ...prev, customValue: localValue }));
-  };
 
   return (
     <div className="flex gap-2 mb-3 flex-wrap">
@@ -53,7 +57,7 @@ function PerkInputRow({ dark, perkInput, setPerkInput, onAdd }) {
             placeholder="Perk description"
             value={localLabel}
             onChange={(e) => setLocalLabel(e.target.value)}
-            onBlur={handleLabelBlur}
+            onBlur={() => setPerkInput((prev) => ({ ...prev, customLabel: localLabel }))}
             className={`w-40 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`}
           />
           <input
@@ -62,7 +66,7 @@ function PerkInputRow({ dark, perkInput, setPerkInput, onAdd }) {
             placeholder="$ value"
             value={localValue}
             onChange={(e) => setLocalValue(e.target.value)}
-            onBlur={handleValueBlur}
+            onBlur={() => setPerkInput((prev) => ({ ...prev, customValue: localValue }))}
             className={`w-24 px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`}
           />
         </>
@@ -79,21 +83,52 @@ function PerkInputRow({ dark, perkInput, setPerkInput, onAdd }) {
   );
 }
 
+// ── Main component ────────────────────────────────────────────────────────────
 export default function TripFinanceOS({ dark }) {
   const d = (light, darkCls) => (dark ? darkCls : light);
 
-  const [trips, setTrips] = useState(() => storageGet('rc_trips', []));
-  const [activeTrip, setActiveTrip] = useState(null);
+  const [trips, setTrips]               = useState(() => storageGet('rc_trips', []));
+  const [activeTrip, setActiveTrip]     = useState(null);
   const [showNewTripForm, setShowNewTripForm] = useState(false);
-  const [newTrip, setNewTrip] = useState({ ...EMPTY_TRIP, id: Date.now() });
-  const [perkInput, setPerkInput] = useState({ preset: '', customLabel: '', customValue: '' });
+  const [newTrip, setNewTrip]           = useState({ ...EMPTY_TRIP, id: Date.now() });
+  const [perkInput, setPerkInput]       = useState({ preset: '', customLabel: '', customValue: '' });
   const [expandedSection, setExpandedSection] = useState('cruise');
-  const [viewingTrip, setViewingTrip] = useState(null);
+  const [viewingTrip, setViewingTrip]   = useState(null);
+
+  // ── FX rate state ────────────────────────────────────────────────────────
+  const [fxRate, setFxRate]         = useState(() => storageGet('rc_fxRate', 1.35));
+  const [fxOverride, setFxOverride] = useState('');  // user's manual input
+  const [fxLoading, setFxLoading]   = useState(false);
+  const [fxDate, setFxDate]         = useState(() => storageGet('rc_fxDate', null));
 
   useEffect(() => { storageSet('rc_trips', trips); }, [trips]);
+  useEffect(() => { storageSet('rc_fxRate', fxRate); }, [fxRate]);
+
+  const refreshFxRate = async () => {
+    setFxLoading(true);
+    const rate = await fetchFxRate();
+    if (rate) {
+      setFxRate(rate);
+      const today = new Date().toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
+      setFxDate(today);
+      storageSet('rc_fxDate', today);
+    }
+    setFxLoading(false);
+  };
+
+  // Auto-fetch on first load if no cached rate or rate is default
+  useEffect(() => {
+    if (!fxDate) refreshFxRate();
+  // eslint-disable-next-line
+  }, []);
+
+  const applyManualRate = () => {
+    const v = parseFloat(fxOverride);
+    if (v > 0) { setFxRate(v); setFxDate('manual'); }
+    setFxOverride('');
+  };
 
   // ── Helpers ──────────────────────────────────────────────────────────────
-
   const addPerk = (localLabel, localValue) => {
     const preset = PERK_PRESETS.find((p) => p.label === perkInput.preset);
     if (!preset) return;
@@ -128,102 +163,54 @@ export default function TripFinanceOS({ dark }) {
 
   const deleteTrip = (id) => setTrips((ts) => ts.filter((t) => t.id !== id));
 
-  // ── Sub-components ───────────────────────────────────────────────────────
-
-  // const NumberField = ({ fieldKey, label, placeholder = '0', prefix = '$' }) => (
-  //   <div className="flex flex-col gap-1">
-  //     <label className={`text-xs font-medium ${d('text-gray-500', 'text-gray-400')}`}>{label}</label>
-  //     <div className="relative">
-  //       <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm ${d('text-gray-400', 'text-gray-500')}`}>{prefix}</span>
-  //       <input
-  //         type="text" inputMode="decimal" placeholder={placeholder}
-  //         value={newTrip[fieldKey] || ''}
-  //         onChange={(e) => {
-  //           let val = e.target.value.replace(/[^\d.]/g, '');
-  //           const parts = val.split('.');
-  //           if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
-  //           setNewTrip((prev) => ({ ...prev, [fieldKey]: val }));
-  //         }}
-  //         className={`w-full pl-7 pr-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`}
-  //       />
-  //     </div>
-  //   </div>
-  // );
+  // ── Sub-components ────────────────────────────────────────────────────────
 
   const NumberField = ({ fieldKey, label, placeholder = '0', prefix = '$' }) => {
-  const [localValue, setLocalValue] = React.useState('');
+    const [localValue, setLocalValue] = React.useState('');
 
-  // Only initialize when trip changes (NOT every keystroke)
-  useEffect(() => {
-    setLocalValue(newTrip[fieldKey] ?? '');
-    // eslint-disable-next-line
-  }, [activeTrip]); // 👈 key fix: depend on trip switch, not field value
+    useEffect(() => {
+      setLocalValue(newTrip[fieldKey] ?? '');
+      // eslint-disable-next-line
+    }, [activeTrip]);
 
-  const handleChange = (e) => {
-    setLocalValue(e.target.value); // no validation here
-  };
-
-  const handleBlur = () => {
-    let val = localValue.replace(/[^\d.]/g, '');
-    const parts = val.split('.');
-    if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
-
-    setNewTrip((prev) => ({
-      ...prev,
-      [fieldKey]: val
-    }));
-
-    // optional formatting
-    if (val) {
-      const numVal = parseFloat(val);
-      if (!isNaN(numVal)) {
-        setLocalValue(
-          numVal.toLocaleString(undefined, {
-            maximumFractionDigits: 2
-          })
-        );
+    const handleBlur = () => {
+      let val = localValue.replace(/[^\d.]/g, '');
+      const parts = val.split('.');
+      if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
+      setNewTrip((prev) => ({ ...prev, [fieldKey]: val }));
+      if (val) {
+        const numVal = parseFloat(val);
+        if (!isNaN(numVal)) setLocalValue(numVal.toLocaleString(undefined, { maximumFractionDigits: 2 }));
       }
-    }
-  };
+    };
 
-  const handleFocus = () => {
-    setLocalValue((v) => v.toString().replace(/,/g, ''));
-  };
-
-  return (
-    <div className="flex flex-col gap-1">
-      <label className={`text-xs font-medium ${d('text-gray-500', 'text-gray-400')}`}>
-        {label}
-      </label>
-
-      <div className="relative">
-        <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm ${d('text-gray-400', 'text-gray-500')}`}>
-          {prefix}
-        </span>
-
-        <input
-          type="text"
-          inputMode="decimal"
-          placeholder={placeholder}
-          value={localValue}
-          onChange={handleChange}
-          onBlur={handleBlur}
-          onFocus={handleFocus}
-          className={`w-full pl-7 pr-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-            d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')
-          }`}
-        />
+    return (
+      <div className="flex flex-col gap-1">
+        <label className={`text-xs font-medium ${d('text-gray-500', 'text-gray-400')}`}>{label}</label>
+        <div className="relative">
+          <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-sm ${d('text-gray-400', 'text-gray-500')}`}>{prefix}</span>
+          <input
+            type="text" inputMode="decimal" placeholder={placeholder}
+            value={localValue}
+            onChange={(e) => setLocalValue(e.target.value)}
+            onBlur={handleBlur}
+            onFocus={() => setLocalValue((v) => v.toString().replace(/,/g, ''))}
+            className={`w-full pl-7 pr-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${d('bg-white border-gray-200 text-gray-800', 'bg-gray-800 border-gray-600 text-white placeholder-gray-500')}`}
+          />
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
-  const Section = ({ id, title, icon: Icon, children }) => (
+  const Section = ({ id, title, icon: Icon, currency, children }) => (
     <div className={`rounded-xl overflow-hidden border mb-3 ${d('border-gray-200', 'border-gray-700')}`}>
       <button
         onClick={() => setExpandedSection(expandedSection === id ? null : id)}
         className={`w-full flex items-center justify-between px-4 py-3 text-sm font-semibold ${d('bg-gray-50 text-gray-700 hover:bg-gray-100', 'bg-gray-800 text-gray-200 hover:bg-gray-750')}`}>
-        <span className="flex items-center gap-2"><Icon className="w-4 h-4" />{title}</span>
+        <span className="flex items-center gap-2">
+          <Icon className="w-4 h-4" />{title}
+          {currency && <CurrencyTag currency={currency} />}
+        </span>
         {expandedSection === id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
       </button>
       {expandedSection === id && (
@@ -232,8 +219,112 @@ export default function TripFinanceOS({ dark }) {
     </div>
   );
 
+  // ── Dual-currency summary row ────────────────────────────────────────────
+  const CurrencySummary = ({ totals, label = 'Summary' }) => (
+    <div className={`rounded-xl p-4 mb-4 ${d('bg-gray-50 border border-gray-200', 'bg-gray-800 border border-gray-700')}`}>
+      <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${d('text-gray-500', 'text-gray-400')}`}>{label}</p>
+
+      {/* SGD + USD side by side */}
+      <div className="grid grid-cols-2 gap-4 mb-3">
+        {/* SGD column */}
+        <div className={`rounded-lg p-3 ${d('bg-red-50', 'bg-red-900/10')}`}>
+          <p className={`text-xs font-bold mb-2 ${d('text-red-600', 'text-red-400')}`}>🇸🇬 SGD (Pre-cruise)</p>
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs">
+              <span className={d('text-gray-500','text-gray-400')}>Cruise + Fees</span>
+              <span className={d('text-gray-800','text-gray-200')}>{fmtSGD(totals.cruiseBase)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className={d('text-gray-500','text-gray-400')}>Travel</span>
+              <span className={d('text-gray-800','text-gray-200')}>{fmtSGD(totals.travel)}</span>
+            </div>
+            <div className={`flex justify-between text-xs font-semibold pt-1 border-t ${d('border-red-200','border-red-800')}`}>
+              <span className={d('text-red-700','text-red-300')}>Total SGD</span>
+              <span className={d('text-red-700','text-red-300')}>{fmtSGD(totals.totalSGD)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* USD column */}
+        <div className={`rounded-lg p-3 ${d('bg-blue-50', 'bg-blue-900/10')}`}>
+          <p className={`text-xs font-bold mb-2 ${d('text-blue-600', 'text-blue-400')}`}>🇺🇸 USD (Onboard)</p>
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs">
+              <span className={d('text-gray-500','text-gray-400')}>Onboard</span>
+              <span className={d('text-gray-800','text-gray-200')}>{fmt(totals.onboard)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className={d('text-gray-500','text-gray-400')}>Casino</span>
+              <span className={d('text-gray-800','text-gray-200')}>{fmt(totals.casino)}</span>
+            </div>
+            <div className={`flex justify-between text-xs font-semibold pt-1 border-t ${d('border-blue-200','border-blue-800')}`}>
+              <span className={d('text-blue-700','text-blue-300')}>Total USD</span>
+              <span className={d('text-blue-700','text-blue-300')}>{fmt(totals.totalUSD)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Grand total converted */}
+      <div className={`rounded-lg p-3 ${d('bg-gray-100', 'bg-gray-700')}`}>
+        <p className={`text-xs font-bold mb-2 ${d('text-gray-600', 'text-gray-300')}`}>
+          Grand Total <span className={`text-xs font-normal ${d('text-gray-400','text-gray-500')}`}>(rate: 1 USD = {fxRate.toFixed(4)} SGD)</span>
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <p className={`text-xs ${d('text-gray-500','text-gray-400')}`}>In SGD</p>
+            <p className={`text-lg font-bold ${d('text-gray-800','text-white')}`}>{fmtSGD(totals.grandSGD)}</p>
+          </div>
+          <div>
+            <p className={`text-xs ${d('text-gray-500','text-gray-400')}`}>In USD</p>
+            <p className={`text-lg font-bold ${d('text-gray-800','text-white')}`}>{fmt(totals.grandUSD)}</p>
+          </div>
+        </div>
+        {totals.perksUSD > 0 && (
+          <div className={`mt-2 pt-2 border-t ${d('border-gray-200','border-gray-600')}`}>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className={`text-xs ${d('text-gray-500','text-gray-400')}`}>Net after Perks (SGD)</p>
+                <p className={`text-base font-bold ${totals.netSGD <= 0 ? d('text-blue-600','text-blue-400') : d('text-orange-600','text-orange-400')}`}>
+                  {fmtSGD(totals.netSGD)}
+                </p>
+              </div>
+              <div>
+                <p className={`text-xs ${d('text-gray-500','text-gray-400')}`}>Net after Perks (USD)</p>
+                <p className={`text-base font-bold ${totals.netUSD <= 0 ? d('text-blue-600','text-blue-400') : d('text-orange-600','text-orange-400')}`}>
+                  {fmt(totals.netUSD)}
+                </p>
+              </div>
+            </div>
+            {totals.netSGD <= 0 && <p className={`text-xs mt-1 ${d('text-blue-500','text-blue-400')}`}>🎉 Perks exceed total cost!</p>}
+          </div>
+        )}
+      </div>
+
+      {/* Casino points */}
+      {totals.pts > 0 && (
+        <div className={`mt-2 flex items-center gap-2 text-xs ${d('text-gray-500', 'text-gray-400')}`}>
+          <Trophy className="w-3.5 h-3.5 text-yellow-500" />
+          <span>{fmtPts(totals.pts)} pts earned</span>
+          {totals.costPerPoint > 0 && <span className="ml-auto">{fmt(totals.costPerPoint)}/pt</span>}
+        </div>
+      )}
+      {totals.goalPct > 0 && (
+        <div className="mt-2">
+          <div className="flex justify-between text-xs mb-1">
+            <span className={d('text-gray-500','text-gray-400')}>Points Goal</span>
+            <span>{totals.goalPct.toFixed(0)}%</span>
+          </div>
+          <div className={`h-2 rounded-full ${d('bg-gray-200','bg-gray-700')}`}>
+            <div className="h-full rounded-full bg-gradient-to-r from-yellow-400 to-yellow-500 transition-all duration-500" style={{ width: `${totals.goalPct}%` }} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   const TripCard = ({ t }) => {
-    const totals = calcTotals(t);
+    const totals = calcTotals(t, fxRate);
     return (
       <div className={`rounded-xl border p-4 cursor-pointer transition-all hover:shadow-md ${d('bg-white border-gray-200 hover:border-blue-300', 'bg-gray-800 border-gray-700 hover:border-blue-600')}`}
         onClick={() => setViewingTrip(viewingTrip === t.id ? null : t.id)}>
@@ -254,13 +345,14 @@ export default function TripFinanceOS({ dark }) {
           </div>
         </div>
 
+        {/* Quick stats: SGD / USD / Net */}
         <div className="grid grid-cols-3 gap-2 mt-3">
           {[
-            ['Total Spent', fmt(totals.total), d('bg-red-50 text-red-500', 'bg-red-900/20 text-red-400'), d('text-red-600', 'text-red-300')],
-            ['Perks Value', fmt(totals.perksValue), d('bg-green-50 text-green-600', 'bg-green-900/20 text-green-400'), d('text-green-700', 'text-green-300')],
-            ['Net Cost', fmt(totals.net),
-              totals.net <= 0 ? d('bg-blue-50 text-blue-500', 'bg-blue-900/20 text-blue-400') : d('bg-orange-50 text-orange-500', 'bg-orange-900/20 text-orange-400'),
-              totals.net <= 0 ? d('text-blue-700', 'text-blue-300') : d('text-orange-700', 'text-orange-300')],
+            ['SGD Spent', fmtSGD(totals.totalSGD), d('bg-red-50 text-red-500','bg-red-900/20 text-red-400'), d('text-red-600','text-red-300')],
+            ['USD Spent', fmt(totals.totalUSD),     d('bg-blue-50 text-blue-500','bg-blue-900/20 text-blue-400'), d('text-blue-700','text-blue-300')],
+            ['Net (SGD)', fmtSGD(totals.netSGD),
+              totals.netSGD <= 0 ? d('bg-green-50 text-green-500','bg-green-900/20 text-green-400') : d('bg-orange-50 text-orange-500','bg-orange-900/20 text-orange-400'),
+              totals.netSGD <= 0 ? d('text-green-700','text-green-300') : d('text-orange-700','text-orange-300')],
           ].map(([label, val, bgCls, textCls]) => (
             <div key={label} className={`rounded-lg p-2 text-center ${bgCls}`}>
               <p className="text-xs">{label}</p>
@@ -273,41 +365,22 @@ export default function TripFinanceOS({ dark }) {
           <div className={`mt-2 flex items-center gap-2 text-xs ${d('text-gray-500', 'text-gray-400')}`}>
             <Trophy className="w-3.5 h-3.5 text-yellow-500" />
             <span>{fmtPts(totals.pts)} pts earned</span>
-            {totals.costPerPoint > 0 && <span className={`ml-auto ${d('text-gray-400', 'text-gray-500')}`}>{fmt(totals.costPerPoint)}/pt</span>}
+            {totals.costPerPoint > 0 && <span className="ml-auto">{fmt(totals.costPerPoint)}/pt</span>}
           </div>
         )}
 
         {viewingTrip === t.id && (
           <div className={`mt-3 pt-3 border-t ${d('border-gray-100', 'border-gray-700')}`} onClick={(e) => e.stopPropagation()}>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              {[['Cruise + Taxes', totals.cruiseBase], ['Travel (Air/Hotel)', totals.travel], ['Onboard Spend', totals.onboard], ['Casino Spend', totals.casino]]
-                .map(([label, val]) => val > 0 && (
-                  <div key={label} className="flex justify-between">
-                    <span className={d('text-gray-500', 'text-gray-400')}>{label}</span>
-                    <span className={d('text-gray-700', 'text-gray-300')}>{fmt(val)}</span>
-                  </div>
-                ))}
-            </div>
+            <CurrencySummary totals={totals} label="Trip Breakdown" />
             {t.perks?.length > 0 && (
               <div className={`mt-2 pt-2 border-t ${d('border-gray-100', 'border-gray-700')}`}>
-                <p className={`text-xs font-semibold mb-1 ${d('text-gray-500', 'text-gray-400')}`}>Perks Received</p>
+                <p className={`text-xs font-semibold mb-1 ${d('text-gray-500', 'text-gray-400')}`}>Perks Received (USD)</p>
                 {t.perks.map((p) => (
                   <div key={p.id} className="flex justify-between text-xs">
                     <span className={d('text-gray-600', 'text-gray-400')}>{p.label}</span>
-                    <span className={d('text-green-600', 'text-green-400')}>{fmt(p.value)}</span>
+                    <span className={d('text-green-600', 'text-green-400')}>{fmt(p.value)} / {fmtSGD(p.value * fxRate)}</span>
                   </div>
                 ))}
-              </div>
-            )}
-            {totals.goalPct > 0 && (
-              <div className="mt-2">
-                <div className="flex justify-between text-xs mb-1">
-                  <span className={d('text-gray-500', 'text-gray-400')}>Points Goal Progress</span>
-                  <span className={d('text-gray-600', 'text-gray-300')}>{totals.goalPct.toFixed(0)}%</span>
-                </div>
-                <div className={`h-1.5 rounded-full ${d('bg-gray-100', 'bg-gray-700')}`}>
-                  <div className="h-full rounded-full bg-yellow-400" style={{ width: `${totals.goalPct}%` }} />
-                </div>
               </div>
             )}
             {t.notes && <p className={`mt-2 text-xs italic ${d('text-gray-400', 'text-gray-500')}`}>{t.notes}</p>}
@@ -318,18 +391,50 @@ export default function TripFinanceOS({ dark }) {
   };
 
   // ── Aggregate stats ───────────────────────────────────────────────────────
-
-  const allTotals  = trips.map(calcTotals);
-  const aggTotal   = allTotals.reduce((s, t) => s + t.total, 0);
-  const aggPerks   = allTotals.reduce((s, t) => s + t.perksValue, 0);
-  const aggNet     = allTotals.reduce((s, t) => s + t.net, 0);
-  const aggPts     = allTotals.reduce((s, t) => s + t.pts, 0);
-  const aggCasino  = allTotals.reduce((s, t) => s + t.casino, 0);
+  const allTotals = trips.map((t) => calcTotals(t, fxRate));
+  const agg = allTotals.reduce((s, t) => ({
+    totalSGD: s.totalSGD + t.totalSGD,
+    totalUSD: s.totalUSD + t.totalUSD,
+    grandSGD: s.grandSGD + t.grandSGD,
+    grandUSD: s.grandUSD + t.grandUSD,
+    netSGD:   s.netSGD   + t.netSGD,
+    netUSD:   s.netUSD   + t.netUSD,
+    perksUSD: s.perksUSD + t.perksUSD,
+    pts:      s.pts      + t.pts,
+    casino:   s.casino   + t.casino,
+  }), { totalSGD:0, totalUSD:0, grandSGD:0, grandUSD:0, netSGD:0, netUSD:0, perksUSD:0, pts:0, casino:0 });
 
   // ── Render ────────────────────────────────────────────────────────────────
-
   return (
     <div>
+      {/* FX Rate Bar */}
+      <div className={`rounded-xl p-3 mb-4 border flex flex-wrap items-center gap-3 ${d('bg-amber-50 border-amber-200', 'bg-amber-900/10 border-amber-800')}`}>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <Calculator className={`w-4 h-4 shrink-0 ${d('text-amber-600','text-amber-400')}`} />
+          <span className={`text-xs font-semibold ${d('text-amber-800','text-amber-300')}`}>
+            1 USD = {fxRate.toFixed(4)} SGD
+            {fxDate && <span className={`ml-1 font-normal ${d('text-amber-600','text-amber-500')}`}>({fxDate})</span>}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="text" inputMode="decimal" placeholder="Override rate"
+            value={fxOverride}
+            onChange={(e) => setFxOverride(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && applyManualRate()}
+            className={`w-28 px-2 py-1 rounded-lg border text-xs focus:outline-none focus:ring-2 focus:ring-amber-400 ${d('bg-white border-amber-300 text-gray-800','bg-gray-800 border-amber-700 text-white')}`}
+          />
+          <button onClick={applyManualRate} className={`px-2 py-1 rounded-lg text-xs font-medium ${d('bg-amber-200 hover:bg-amber-300 text-amber-900','bg-amber-800 hover:bg-amber-700 text-amber-100')}`}>
+            Set
+          </button>
+          <button onClick={refreshFxRate} disabled={fxLoading}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium ${d('bg-amber-600 hover:bg-amber-700 text-white','bg-amber-700 hover:bg-amber-600 text-white')} disabled:opacity-50`}>
+            <RefreshCw className={`w-3 h-3 ${fxLoading ? 'animate-spin' : ''}`} />
+            {fxLoading ? 'Fetching…' : 'Live Rate'}
+          </button>
+        </div>
+      </div>
+
       {/* Aggregate Banner */}
       {trips.length > 1 && (
         <div className={`rounded-xl p-4 mb-5 border ${d('bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100', 'bg-gradient-to-r from-blue-900/20 to-indigo-900/20 border-blue-800')}`}>
@@ -337,17 +442,31 @@ export default function TripFinanceOS({ dark }) {
             <BarChart2 className="w-4 h-4 inline mr-1" />All Trips Summary
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[['Total Spent', fmt(aggTotal), d('text-red-600','text-red-300')], ['Perks Value', fmt(aggPerks), d('text-green-600','text-green-300')], ['Net Cost', fmt(aggNet), d('text-blue-700','text-blue-300')], ['Casino Points', fmtPts(aggPts), d('text-yellow-600','text-yellow-400')]]
-              .map(([l, v, cls]) => (
-                <div key={l}>
-                  <p className={`text-xs ${d('text-gray-500', 'text-gray-400')}`}>{l}</p>
-                  <p className={`text-base font-bold ${cls}`}>{v}</p>
-                </div>
-              ))}
+            {[
+              ['SGD Spent',    fmtSGD(agg.totalSGD), d('text-red-600','text-red-300')],
+              ['USD Spent',    fmt(agg.totalUSD),     d('text-blue-600','text-blue-300')],
+              ['Net (SGD)',    fmtSGD(agg.netSGD),    agg.netSGD <= 0 ? d('text-green-700','text-green-300') : d('text-orange-600','text-orange-300')],
+              ['Net (USD)',    fmt(agg.netUSD),        agg.netUSD <= 0 ? d('text-green-700','text-green-300') : d('text-orange-600','text-orange-300')],
+            ].map(([l, v, cls]) => (
+              <div key={l}>
+                <p className={`text-xs ${d('text-gray-500', 'text-gray-400')}`}>{l}</p>
+                <p className={`text-base font-bold ${cls}`}>{v}</p>
+              </div>
+            ))}
           </div>
-          {aggCasino > 0 && aggPts > 0 && (
+          <div className="grid grid-cols-2 gap-3 mt-2 pt-2 border-t border-blue-100">
+            <div>
+              <p className={`text-xs ${d('text-gray-500','text-gray-400')}`}>Grand Total (SGD)</p>
+              <p className={`text-sm font-bold ${d('text-gray-700','text-gray-200')}`}>{fmtSGD(agg.grandSGD)}</p>
+            </div>
+            <div>
+              <p className={`text-xs ${d('text-gray-500','text-gray-400')}`}>Grand Total (USD)</p>
+              <p className={`text-sm font-bold ${d('text-gray-700','text-gray-200')}`}>{fmt(agg.grandUSD)}</p>
+            </div>
+          </div>
+          {agg.casino > 0 && agg.pts > 0 && (
             <p className={`text-xs mt-2 ${d('text-gray-500', 'text-gray-400')}`}>
-              Average casino cost-per-point: <span className="font-semibold">{fmt(aggCasino / aggPts)}</span> across all trips
+              Avg casino cost/pt: <span className="font-semibold">{fmt(agg.casino / agg.pts)}</span> across all trips
             </p>
           )}
         </div>
@@ -397,52 +516,54 @@ export default function TripFinanceOS({ dark }) {
             </div>
           </div>
 
-          <Section id="cruise" title="Cruise Cost" icon={Anchor}>
+          <Section id="cruise" title="Cruise Cost" icon={Anchor} currency="SGD">
+            <p className={`text-xs mb-3 ${d('text-gray-400','text-gray-500')}`}>These are paid in SGD before you board.</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <NumberField fieldKey="cruiseCost" label="Cruise Fare (Ticket)" />
-              <NumberField fieldKey="taxes" label="Taxes & Port Fees" />
-              <NumberField fieldKey="airfare" label="Airfare" />
-              <NumberField fieldKey="hotel" label="Pre/Post Hotel" />
+              <NumberField fieldKey="cruiseCost" label="Cruise Fare (Ticket)" prefix="S$" />
+              <NumberField fieldKey="taxes"      label="Taxes & Port Fees"    prefix="S$" />
+              <NumberField fieldKey="airfare"    label="Airfare"              prefix="S$" />
+              <NumberField fieldKey="hotel"      label="Pre/Post Hotel"       prefix="S$" />
             </div>
           </Section>
 
-          <Section id="onboard" title="Onboard Spending" icon={DollarSign}>
+          <Section id="onboard" title="Onboard Spending" icon={DollarSign} currency="USD">
+            <p className={`text-xs mb-3 ${d('text-gray-400','text-gray-500')}`}>Onboard charges are billed in USD.</p>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <NumberField fieldKey="foodDrinks" label="Food & Drinks" />
-              <NumberField fieldKey="excursions" label="Excursions" />
-              <NumberField fieldKey="spa" label="Spa & Wellness" />
-              <NumberField fieldKey="shopping" label="Shopping" />
-              <NumberField fieldKey="otherOnboard" label="Other Onboard" />
+              <NumberField fieldKey="foodDrinks"   label="Food & Drinks"   />
+              <NumberField fieldKey="excursions"   label="Excursions"      />
+              <NumberField fieldKey="spa"          label="Spa & Wellness"  />
+              <NumberField fieldKey="shopping"     label="Shopping"        />
+              <NumberField fieldKey="otherOnboard" label="Other Onboard"   />
             </div>
           </Section>
 
-          <Section id="casino" title="Casino (Optional)" icon={Trophy}>
+          <Section id="casino" title="Casino (Optional)" icon={Trophy} currency="USD">
             <div className={`flex items-start gap-2 mb-3 p-2 rounded-lg text-xs ${d('bg-amber-50 text-amber-700', 'bg-amber-900/20 text-amber-400')}`}>
               <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-              <span>Casino data is stored locally on your device and never shared.</span>
+              <span>Casino charges are in USD. Data is stored locally and never shared.</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <NumberField fieldKey="casinoSpend" label="Casino Buy-ins / Losses" />
-              <NumberField fieldKey="casinoPointsEarned" label="Casino Points Earned" prefix="🏆" />
-              <NumberField fieldKey="casinoPointsGoal" label="Points Goal (optional)" prefix="🎯" />
+              <NumberField fieldKey="casinoSpend"        label="Casino Buy-ins / Losses" />
+              <NumberField fieldKey="casinoPointsEarned" label="Casino Points Earned"    prefix="🏆" />
+              <NumberField fieldKey="casinoPointsGoal"   label="Points Goal (optional)"  prefix="🎯" />
             </div>
           </Section>
 
-          <Section id="perks" title="Perks & Rewards Received" icon={Gift}>
+          <Section id="perks" title="Perks & Rewards Received" icon={Gift} currency="USD">
+            <p className={`text-xs mb-3 ${d('text-gray-400','text-gray-500')}`}>Perk values are in USD (onboard credits, free cabins, etc.).</p>
             <PerkInputRow
               dark={dark}
               perkInput={perkInput}
               setPerkInput={setPerkInput}
               onAdd={addPerk}
             />
-
             {newTrip.perks?.length > 0 && (
               <div className="space-y-1">
                 {newTrip.perks.map((p) => (
                   <div key={p.id} className={`flex items-center justify-between px-3 py-1.5 rounded-lg text-sm ${d('bg-green-50 text-green-800', 'bg-green-900/20 text-green-300')}`}>
                     <span>{p.label}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{fmt(p.value)}</span>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs ${d('text-gray-400','text-gray-500')}`}>{fmt(p.value)} / {fmtSGD(p.value * fxRate)}</span>
                       <button onClick={() => removePerk(p.id)} className="text-red-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
@@ -452,38 +573,7 @@ export default function TripFinanceOS({ dark }) {
           </Section>
 
           {/* Live Summary */}
-          {(() => {
-            const t = calcTotals(newTrip);
-            return (
-              <div className={`rounded-xl p-4 mb-4 ${d('bg-gray-50 border border-gray-200', 'bg-gray-800 border border-gray-700')}`}>
-                <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${d('text-gray-500', 'text-gray-400')}`}>Live Summary</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {[['Total Spent', fmt(t.total), d('text-red-600','text-red-400')], ['Perks Value', fmt(t.perksValue), d('text-green-600','text-green-400')],
-                    ['Net Cost', fmt(t.net), t.net <= 0 ? d('text-blue-700','text-blue-400') : d('text-orange-600','text-orange-400')],
-                    t.pts > 0 ? ['Casino Points', fmtPts(t.pts), d('text-yellow-600','text-yellow-400')] : null]
-                    .filter(Boolean).map(([l, v, cls]) => (
-                      <div key={l}>
-                        <p className={`text-xs ${d('text-gray-500','text-gray-400')}`}>{l}</p>
-                        <p className={`text-lg font-bold ${cls}`}>{v}</p>
-                        {l === 'Net Cost' && t.net <= 0 && <p className={`text-xs ${d('text-blue-500','text-blue-400')}`}>🎉 Perks exceed cost!</p>}
-                        {l === 'Casino Points' && t.costPerPoint > 0 && <p className={`text-xs ${d('text-gray-400','text-gray-500')}`}>{fmt(t.costPerPoint)}/pt</p>}
-                      </div>
-                    ))}
-                </div>
-                {t.goalPct > 0 && (
-                  <div className="mt-3">
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className={d('text-gray-500','text-gray-400')}>Points Goal</span>
-                      <span className={d('text-gray-600','text-gray-300')}>{fmtPts(num(newTrip.casinoPointsEarned))} / {fmtPts(num(newTrip.casinoPointsGoal))} ({t.goalPct.toFixed(0)}%)</span>
-                    </div>
-                    <div className={`h-2 rounded-full ${d('bg-gray-200','bg-gray-700')}`}>
-                      <div className="h-full rounded-full bg-gradient-to-r from-yellow-400 to-yellow-500 transition-all duration-500" style={{ width: `${t.goalPct}%` }} />
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          <CurrencySummary totals={calcTotals(newTrip, fxRate)} label="Live Summary" />
 
           <div className="flex flex-col gap-2 mb-3">
             <label className={`text-xs font-medium ${d('text-gray-500','text-gray-400')}`}>Notes</label>
